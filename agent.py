@@ -10,7 +10,6 @@ class Agent():
     def rgb2gray(self, rgb):
         return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
-
     def __init__(self, mem_size=10000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.1, epsilon_decay_episodes=10000):
         self.env = retro.make(game='Airstriker-Genesis', state='Level1.state',record='.')
         self.memory_states = np.zeros((mem_size, 80, 112))
@@ -50,10 +49,11 @@ class Agent():
             ob_, reward, done, info = self.env.step(ac)
             if skip == self.frame_skip:
                 self.safe(ob, ac, reward, ob_, t)
+                t += 1
                 skip = 0
             else:
                 skip += 1
-            ob, t = ob_, t+1
+            ob = ob_
 
     def train(self):
         for i in tqdm(range(20)):
