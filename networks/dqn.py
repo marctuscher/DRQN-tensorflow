@@ -7,45 +7,42 @@ import numpy as np
 import os
 import tensorflow as tf
 import shutil
+from networks.keras_progbar import Progbar
+from functools import reduce
 from random import shuffle
 
-from utilities.keras_progbar import Progbar
+# from utilities.keras_progbar import Progbar
 
 """
 This class instantiates a neural network for regression on a specific dataset
 """
 class DQN():
 
-    def __init__(self, n_actions):
-        """
-        Defines the hyperparameters
-        """
-        # training
-        self.utils = utils
+    def __init__(self, n_actions, screen_width, screen_height):
         self.n_actions = n_actions
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.history_len=1
+
         self.nepochs =100
         self.keep_prob = 0.5
-        self.batch_size = 512
+        self.batch_size = 32
         self.lr_method = "adam"
         self.learning_rate = 0.001
         self.lr_decay = 0.9
-        self.clip = -1  # if negative, no clipping
+        self.clip = 1  # if negative, no clipping
         self.nepoch_no_imprv = 5
-        # model hyperparameters
-        self.hidden_size_lstm = 300  # lstm on word embeddings
         self.sess = None
         self.saver = None
         # delete ./out so
-        if os.path.isdir("./out"):
-            shutil.rmtree("./out")
-        self.dir_output = "./out"
-        self.dir_model = os.getenv("HOME") + str("/tmp/btcmodel/model.ckpt")
-        self.acc = 0
-        self.seq_len=60
+        # if os.path.isdir("./out"):
+        #     shutil.rmtree("./out")
+        # self.dir_output = "./out"
+        # self.dir_model = os.getenv("HOME") + str("/tmp/btcmodel/model.ckpt")
 
     def reinitialize_weights(self, scope_name):
-        variables = tf.contrib.framework.get_variables(scope_name)
-        init = tf.variables_initializer(variables)
+        variables = tf.contrib.framework.get_variables(scope_init)
+        name = tf.variables_initializer(variables)
         self.sess.run(init)
 
     def add_train_op(self, lr_method, lr, loss, clip=-1):
@@ -84,36 +81,17 @@ class DQN():
         self.file_writer = tf.summary.FileWriter(self.dir_output+"/train",
                                                  self.sess.graph)
 
-    def train(self, train, dev):
+    def train(self, train):
         best_score = 0
         nepoch_no_imprv = 0  # for early stopping
-        self.add_summary()  # tensorboard
+        # self.add_summary()  # tensorboard
 
         for epoch in range(self.nepochs):
             print("Epoch {:} out of {:}\n".format(epoch + 1,
                                                 self.nepochs))
-            self.run_epoch(train, dev, epoch)
+            self.run_epoch(train, epoch)
             self.learning_rate *= self.lr_decay  # decay learning rate
 
-            if epoch % 2 == 0:
-
-                metrics = self.run_evaluate(dev)
-                msg = " - ".join(["{} {:04.2f}".format(k, v)
-                          for k, v in metrics.items()])
-                print(msg)
-                self.file_writer.add_summary(tf.Summary(value=[tf.Summary.Value(tag="accuracy", simple_value=metrics["acc"])]), epoch)
-                # early stopping and saving best parameters
-                if metrics["acc"] < best_score:
-                    nepoch_no_imprv = 0
-                    self.save_session()
-                    best_score = metrics["acc"]
-                    print("- new best score!")
-                else:
-                    nepoch_no_imprv += 1
-                    if nepoch_no_imprv >= self.nepoch_no_imprv:
-                        print("- early stopping {} epochs without " \
-                              "improvement".format(nepoch_no_imprv))
-                        break
 
     def evaluate(self, test):
         print("Testing model over test set")
@@ -123,66 +101,65 @@ class DQN():
         print(msg)
 
     def add_placeholders(self):
-        self.weights = {}
-        self.target_weights = {}
+        self.w = {}
+        self.w_target = {}
         self.state = tf.placeholder(tf.float32, shape=[None, self.history_len, self.screen_width, self.screen_height],
-                                       name="input")
+                                       name="input_state")
+        self.action = tf.placeholder(tf.int32, shape=[None], name="action_input")
+        self.reward = tf.placeholder(tf.int32, shape=[None], name="reward")
 
-        self.state_target = tf.placeholder(tf.float32, shape=[None, 80,112],
+        self.state_target = tf.placeholder(tf.float32, shape=[None,self.history_len, 80,112],
                                        name="input_target")
-        self.y = tf.placeholder(tf.float32, shape=[self.batch_size, self.action_shape[0], self.action_shape[1]],
-                                     name="y")
-        self.y_target = tf.placeholder(tf.float32, shape=[self.batch_size, self.action_shape[0], self.action_shape[1]],
-                                     name="y_target")
         self.dropout = tf.placeholder(dtype=tf.float32, shape=[],
                                       name="dropout")
         self.lr = tf.placeholder(dtype=tf.float32, shape=[],
                                  name="lr")
 
-    def get_feed_dict(self, x_inputs, y=None, lr=None, dropout=None):
-
+    def get_feed_dict(self, state_inputs, action_inputs,reward, state_target=None, lr=None, dropout=None):
         feed = {
-            self.x_inputs: x_inputs
+            self.state: state_inputs,
+            self.action: action_inputs
         }
+        if reward is not None:
+            feed[self.reward] = reward
 
-        if y is not None:
-            feed[self.y] = y
+        if state_target is not None:
+            feed[self.state_target] = state_target
 
         if lr is not None:
             feed[self.lr] = lr
 
         if dropout is not None:
             feed[self.dropout] = dropout
-
         return feed
 
 
     def add_logits_op_train(self):
         with tf.variable_scope("conv1_train"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=tf.zeros_initializer())
-            conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NHWC')
+            conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc1', [32], initializer=tf.zeros_initializer())
             self.w['wc1'] = w
             self.w['bc1'] = b
-            out = tf.nn.bias_add(conv, b, "NHWC")
+            out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_train"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=tf.zeros_initializer())
-            conv = tf.nn.conv2d(out, w, [1, 1, 2, 2], padding='VALID', data_format='NHWC')
+            conv = tf.nn.conv2d(out, w, [1, 1, 2, 2], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc2', [64], initializer=tf.zeros_initializer())
             self.w['wc2'] = w
             self.w['bc2'] = b
-            out = tf.nn.bias_add(conv, b, "NHWC")
+            out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_train"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=tf.zeros_initializer())
-            conv = tf.nn.conv2d(out, w, [1, 1, 1, 1], padding='VALID', data_format='NHWC')
+            conv = tf.nn.conv2d(out, w, [1, 1, 1, 1], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc3', [64], initializer=tf.zeros_initializer())
             self.w['wc3'] = w
             self.w['bc3'] = b
-            out = tf.nn.bias_add(conv, b, "NHWC")
+            out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
 
             shape = out.get_shape().as_list()
@@ -202,38 +179,38 @@ class DQN():
             b = tf.get_variable('bout', [self.n_actions], dtype=tf.float32, initializer=tf.zeros_initializer())
             self.w["wout"] = w
             self.w["bout"] = b
-            out = tf.nn.xw_plus_b(out_flat, w, b)
+            out = tf.nn.xw_plus_b(out, w, b)
             out = tf.nn.relu(out)
             self.q_out = out
+            self.q_action = tf.argmax(self.q_out, dimension=1)
 
     def add_logits_op_target(self):
         with tf.variable_scope("conv1_target"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=tf.zeros_initializer())
-            conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NHWC')
+            conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc1', [32], initializer=tf.zeros_initializer())
             self.w_target['wc1'] = w
             self.w_target['bc1'] = b
-            out = tf.nn.bias_add(conv, b, "NHWC")
+            out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_target"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=tf.zeros_initializer())
-            conv = tf.nn.conv2d(out, w, [1, 1, 2, 2], padding='VALID', data_format='NHWC')
+            conv = tf.nn.conv2d(out, w, [1, 1, 2, 2], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc2', [64], initializer=tf.zeros_initializer())
             self.w_target['wc2'] = w
             self.w_target['bc2'] = b
-            out = tf.nn.bias_add(conv, b, "NHWC")
+            out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_target"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=tf.zeros_initializer())
-            conv = tf.nn.conv2d(out, w, [1, 1, 1, 1], padding='VALID', data_format='NHWC')
+            conv = tf.nn.conv2d(out, w, [1, 1, 1, 1], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc3', [64], initializer=tf.zeros_initializer())
             self.w_target['wc3'] = w
             self.w_target['bc3'] = b
-            out = tf.nn.bias_add(conv, b, "NHWC")
+            out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
-
             shape = out.get_shape().as_list()
             out_flat = tf.reshape(out, [-1, reduce(lambda x,y: x * y, shape[1:])])
             shape = out_flat.get_shape().as_list()
@@ -251,102 +228,48 @@ class DQN():
             b = tf.get_variable('bout', [self.n_actions], dtype=tf.float32, initializer=tf.zeros_initializer())
             self.w_target["wout"] = w
             self.w_target["bout"] = b
-            out = tf.nn.xw_plus_b(out_flat, w, b)
+            out = tf.nn.xw_plus_b(out, w, b)
             out = tf.nn.relu(out)
             self.q_target_out = out
+            self.q_target_action = tf.argmax(self.q_target_out, dimension=1)
 
-
-    def add_pred_op(self):
-        """Defines self.labels_pred
-        Gets int labels from the output of the softmax layer. The predicted label is
-        the argmax of this layer
-        """
-        self.y_pred = self.logits
 
     def add_loss_op(self):
-        """Losses for training"""
-        loss = tf.losses.mean_squared_error(
-            predictions=self.logits, labels=self.y)
+        loss = tf.square(tf.subtract(tf.add(tf.cast(self.reward, dtype=tf.float32), tf.gather(tf.transpose(self.q_target_out, [1,0]), self.q_target_action)), tf.gather(tf.transpose(self.q_out, [1,0]), self.action)))
         self.loss = tf.reduce_mean(loss)
-
-        # Scalars for tensorboard
         tf.summary.scalar("loss", self.loss)
+
     def build(self):
-        """
-        Build the computational graph with functions defined earlier
-        """
         self.add_placeholders()
-        self.add_logits_op()
-        self.add_pred_op()
+        self.add_logits_op_train()
+        self.add_logits_op_target()
         self.add_loss_op()
         self.add_train_op(self.lr_method, self.lr, self.loss,
                           self.clip)
         self.initialize_session()
 
-    def predict_batch(self, x):
-        """
-        Args:
-            words: list of sentences
+    def predict_batch(self, state_input, action_input):
+        fd = self.get_feed_dict(state_input, action_input, dropout=1.0)
+        q, a = self.sess.run([self.q_out, self.q_action], feed_dict=fd)
+        return q, a
 
-        Returns:
-            labels_pred: list of labels for each sentence
-            sequence_length
-        Predict a batch of sentences (list of word_ids)
-        """
-        fd = self.get_feed_dict(x, dropout=1.0)
-        y_pred = self.sess.run(self.y_pred, feed_dict=fd)
-        return y_pred
-
-    def run_epoch(self, train, dev, epoch):
-        """Performs one complete epoch over the dataset
-
-        Args:
-            train: dataset for training that yields tuple of sentences, tags
-            dev: dataset for evaluation that yields tuple of sentences, tags
-            epoch: (int) index of the current epoch
-
-        Returns:
-            acc: (float) current accuracy score over evaluation dataset
-
-        """
+    def run_epoch(self, train, epoch):
         # progbar stuff for logging
         batch_size = self.batch_size
         nbatches = (len(train) + batch_size - 1) // batch_size
         prog = Progbar(target=nbatches)
         shuffle(train)
-        for i, (x, y) in enumerate(self.utils.minibatches(train, batch_size)):
-            fd = self.get_feed_dict(x, y, self.learning_rate,
+        for i, (state, action, reward, state_) in enumerate(self.minibatches(train, batch_size)):
+            fd = self.get_feed_dict(state, action, reward, state_, self.learning_rate,
                                        self.keep_prob)
 
-            _, train_loss, summary = self.sess.run(
-                [self.train_op, self.loss, self.merged], feed_dict=fd)
-
+            _, train_loss = self.sess.run(
+                [self.train_op, self.loss], feed_dict=fd)
             prog.update(i + 1, [("train loss", train_loss)])
 
             # tensorboard
-            if i % 10 == 0:
-                self.file_writer.add_summary(summary, epoch * nbatches + i)
-
-
-    def run_evaluate(self, test):
-        """Evaluates performance on test set
-
-        Args:
-            test: dataset that yields tuple of (sentences, tags)
-
-        Returns:
-            metrics: (dict) metrics["acc"] = 98.4, ...
-
-        """
-        accs = []
-        for x, y in self.utils.minibatches(test, self.batch_size):
-            y_pred= self.predict_batch(x)
-            for y, y_pred in zip(y, y_pred):
-                print("gt: ", y, " pred ", y_pred)
-                accs += [(y-y_pred)**2]
-        acc = np.mean(accs)
-        # set self.acc for Tensorboard visualization
-        return {"acc": acc}
+            # if i % 10 == 0:
+                # self.file_writer.add_summary(summary, epoch * nbatches + i)
 
 
     def save_session(self):
@@ -354,3 +277,27 @@ class DQN():
         if not os.path.exists(self.dir_model):
             os.makedirs(self.dir_model)
         self.saver.save(self.sess, self.dir_model)
+
+
+    def minibatches(self, data, minibatch_size):
+        """
+        Args:
+            data: generator of (sentence, tags) tuples
+            minibatch_size: (int)
+        Yields:
+            list of tuples
+        """
+        action_batch, state_batch, reward_batch, state_batch_ = [], [], [], []
+
+        for (state, action, reward, state_) in data:
+            if len(state_batch) == minibatch_size:
+                yield state_batch, action_batch, reward_batch, state_batch_
+                action_batch, state_batch, reward_batch, state_batch_ = [], [], [], []
+
+            action_batch += [action]
+            reward_batch += [reward]
+            state_batch += [state]
+            state_batch_ += [state_]
+
+        if len(state_batch) != 0:
+            yield state_batch, action_batch, reward_batch, state_batch_

@@ -12,13 +12,15 @@ class Agent():
 
     def __init__(self, mem_size=10000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.1, epsilon_decay_episodes=10000):
         self.env = retro.make(game='Airstriker-Genesis', state='Level1.state',record='.')
-        self.memory_states = np.zeros((mem_size, 80, 112))
-        self.memory_states_ = np.zeros((mem_size, 80, 112))
-        self.memory_actions = np.zeros((mem_size,)+ (self.env.action_space.shape))
+        self.memory_states = np.zeros((mem_size,1, 80, 112))
+        self.memory_states_ = np.zeros((mem_size,1, 80, 112))
+        self.memory_actions = np.zeros((mem_size,))
+        print(self.env.action_space.n)
         self.memory_rewards = np.zeros((mem_size,))
         self.memory_t = np.zeros((mem_size,))
         self.last_insert = -1
-        self.net = DQN()
+        self.net = DQN(2**self.env.action_space.n, 80, 112)
+        self.net.build()
         self.mem_size = mem_size
         self.frame_skip = frame_skip
         self.epsilon_decay = (epsilon_start-epsilon_end)/epsilon_decay_episodes
@@ -31,9 +33,9 @@ class Agent():
     def safe(self, ob, ac, reward, ob_, t):
         self.last_insert += 1
         if not self.last_insert >= self.mem_size:
-            self.memory_states[self.last_insert] = self.rgb2gray(resize(ob, (80, 112,3)))
-            self.memory_states_[self.last_insert] = self.rgb2gray(resize(ob_, (80,112,3)))
-            self.memory_actions[self.last_insert] = ac
+            self.memory_states[self.last_insert][0] = self.rgb2gray(resize(ob, (80, 112,3)))
+            self.memory_states_[self.last_insert][0] = self.rgb2gray(resize(ob_, (80,112,3)))
+            self.memory_actions[self.last_insert] = int("".join(map(str, ac)), 2)
             self.memory_rewards[self.last_insert] = reward
             self.memory_t[self.last_insert] = t
         else:
@@ -56,7 +58,9 @@ class Agent():
             ob = ob_
 
     def train(self):
-        for i in tqdm(range(20)):
+        for i in tqdm(range(100)):
             self.run_episode()
             if i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
+        data=list(zip(*[self.memory_states, self.memory_actions, self.memory_rewards, self.memory_states_]))
+        self.net.train(data)
