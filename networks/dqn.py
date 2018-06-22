@@ -14,19 +14,19 @@ This class instantiates a neural network for regression on a specific dataset
 """
 class DQN():
 
-    def __init__(self, n_actions, screen_width, screen_height, gamma=0.99, debug=False):
+    def __init__(self, n_actions, history_len, screen_width, screen_height, gamma=0.99, debug=False):
         self.n_actions = n_actions
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.history_len=1
         self.gamma = gamma
         self.debug = debug
+        self.history_len = history_len
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         # self.debug = True
-        self.nepochs = 15
+        self.nepochs = 30
         self.keep_prob = 0.8
-        self.batch_size = 64
+        self.batch_size = 128
         self.lr_method = "adam"
         self.learning_rate = 0.01
         self.lr_decay = 0.99
@@ -39,6 +39,7 @@ class DQN():
             shutil.rmtree("./out")
         self.dir_output = "./out"
         # self.dir_model = os.getenv("HOME") + str("/tmp/btcmodel/model.ckpt")
+        self.train_steps = 0
 
     def reinitialize_weights(self, scope_name):
         variables = tf.contrib.framework.get_variables(scope_init)
@@ -96,6 +97,15 @@ class DQN():
             self.update_target()
 
 
+    def train_on_batch(self, state, action, reward, state_, terminal):
+        fd = self.get_feed_dict(state, action, reward, state_,terminal, self.learning_rate,
+                                self.keep_prob)
+        _, train_loss, summary = self.sess.run(
+            [self.train_op, self.loss, self.merged], feed_dict=fd
+        )
+        self.file_writer.add_summary(summary, self.train_steps)
+        self.train_steps += 1
+
     def evaluate(self, test):
         print("Testing model over test set")
         metrics = self.run_evaluate(test)
@@ -117,8 +127,10 @@ class DQN():
                                       name="dropout")
         self.lr = tf.placeholder(dtype=tf.float32, shape=[],
                                  name="lr")
+        self.terminal = tf.placeholder(dtype=tf.uint8, shape=[None], name="terminal")
 
-    def get_feed_dict(self, state_inputs, action_inputs=None,reward=None, state_target=None, lr=None, dropout=None):
+
+    def get_feed_dict(self, state_inputs, action_inputs=None,reward=None, state_target=None,terminal=None, lr=None, dropout=None):
         feed = {
             self.state: state_inputs
         }
@@ -136,7 +148,8 @@ class DQN():
 
         if dropout is not None:
             feed[self.dropout] = dropout
-
+        if terminal is not None:
+            feed[self.terminal] = terminal
         return feed
 
 
@@ -251,7 +264,7 @@ class DQN():
         target_one_hot = tf.one_hot(self.q_target_action, self.n_actions, 1.0, 0.0, name='target_action_one_hot')
         target = tf.reduce_sum(self.q_target_out * target_one_hot, reduction_indices=1, name='target')
         train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
-        loss = tf.square(tf.subtract(tf.add(tf.cast(self.reward, dtype=tf.float32), self.gamma * target), train))
+        loss = tf.square(tf.subtract(tf.add(tf.cast(self.reward, dtype=tf.float32),tf.subtract(tf.constant(1.0),tf.cast(self.terminal, dtype=tf.float32)) * self.gamma * target), train))
         self.loss = tf.reduce_mean(loss)
         tf.summary.scalar("loss", self.loss)
 

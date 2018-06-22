@@ -3,75 +3,78 @@ import numpy as np
 from networks.dqn import DQN
 from tqdm import tqdm
 from PIL import Image
+from history import History
+from replay_memory import ReplayMemory
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 class Agent():
 
 
-    def __init__(self, mem_size=10000, network_type="dqn", frame_skip=4, epsilon_start=0.2, epsilon_end=0.1, epsilon_decay_episodes=10000):
-        self.env = retro.make(game='Airstriker-Genesis', state='Level1.state',record='.')
-        self.memory_states = np.zeros((mem_size,1, 80, 112))
-        self.memory_states_ = np.zeros((mem_size,1, 80, 112))
-        self.memory_actions = np.zeros((mem_size,))
-        self.memory_rewards = np.zeros((mem_size,))
-        self.memory_t = np.zeros((mem_size,))
-        self.last_insert = -1
-        self.net = DQN(2**self.env.action_space.n, 80, 112)
-        self.net.build()
+    def __init__(self, batch_size=128,history_len=4,mem_size=20000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.1, epsilon_decay_episodes=10000, screen_height=80, screen_width=112, train_freq=2, update_freq=10):
+        self.batch_size = batch_size
         self.mem_size = mem_size
         self.frame_skip = frame_skip
+        self.history_len = history_len
+        self.screen_height = screen_height
+        self.screen_width = screen_width
         self.epsilon_decay = (epsilon_start-epsilon_end)/epsilon_decay_episodes
         self.epsilon = epsilon_start
         self.epsilon_decay_episodes = epsilon_decay_episodes
-        self._filled_once = False
+        self.train_freq = train_freq
+        self.update_freq = update_freq
+
+        self.env = retro.make(game='Airstriker-Genesis', state='Level1.state',record='.')
+        self.net = DQN(2**self.env.action_space.n,self.history_len, 80, 112)
+        self.history = History(self.batch_size, self.history_len, self.screen_height, self.screen_width)
+        self.replay_memory = ReplayMemory(self.mem_size, self.screen_height, self.screen_width, self.batch_size, self.history_len)
+        self.net.build()
 
     def policy(self, state):
         if np.random.rand()< self.epsilon:
             return self.env.action_space.sample()
         else:
-            q, a = self.net.predict_batch([[self._preprocess(state)]])
+            q, a = self.net.predict_batch([state])
             return self._to_actionspace(a[0])
 
+    def observe(self, screen, action, reward, done):
+        screen = self._preprocess(screen)
+        action = self._to_action_int(action)
+        self.history.add(screen)
+        self.replay_memory.add(screen, reward, action, done)
 
-    def safe(self, ob, ac, reward, ob_, t):
-        self.last_insert = (self.last_insert + 1) % self.mem_size
-        if self.last_insert == self.mem_size -1:
-            self._filled_once = True
-        self.memory_states[self.last_insert][0] = self._preprocess(ob)
-        self.memory_states_[self.last_insert][0] = self._preprocess(ob_)
-        self.memory_actions[self.last_insert] = self._to_action_int(ac)
-        self.memory_rewards[self.last_insert] = reward
-        self.memory_t[self.last_insert] = t
 
     def run_episode(self):
         ob = self.env.reset()
+        if self.i == 0:
+            for _ in range(self.history_len):
+                self.history.add(self._preprocess(ob))
         t = 0
         done = False
         skip = 0
-        ac =  self.policy(ob)
+        ac =  self.policy(self.history.get())
         while not done:
             ob_, reward, done, info = self.env.step(ac)
-            if skip == self.frame_skip or done: # TODO this might be buggy 
-                self.safe(ob, ac, reward, ob_, t)
+            if skip == self.frame_skip: # TODO this might be buggy
+                self.observe(ob_, ac, reward, done) #komisch, hier den nächsten screen zu nehmen...
                 t += 1
                 skip = 0
-                ac =  self.policy(ob)
+                ac =  self.policy(self.history.get())
             else:
                 skip += 1
-
-            if t % 3 == 0:
-                self.env.render()
+            # if t % 3 == 0:
+            #     self.env.render()
             ob = ob_
 
     def train(self):
-        for i in tqdm(range(2000)):
+        for self.i in tqdm(range(200000)):
             self.run_episode()
-            if i < self.epsilon_decay_episodes:
+            if self.i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
-            if i != 0 and i % 5 == 0 and self._filled_once:
-                print("last insert: ", self.last_insert)
-                data=list(zip(*[self.memory_states, self.memory_actions, self.memory_rewards, self.memory_states_]))
-                self.net.train(data)
+            if self.i % self.train_freq == 0:
+                for i in range(10):
+                    self.net.train_on_batch(*self.replay_memory.sample_batch())
+            if self.i % self.update_freq == 0:
+                self.net.update_target()
 
 
     def _preprocess(self, ob):
