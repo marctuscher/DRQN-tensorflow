@@ -40,6 +40,7 @@ class DQN():
         self.dir_output = "./out"
         # self.dir_model = os.getenv("HOME") + str("/tmp/btcmodel/model.ckpt")
         self.train_steps = 0
+        self.is_training = False
 
     def reinitialize_weights(self, scope_name):
         variables = tf.contrib.framework.get_variables(scope_init)
@@ -98,6 +99,7 @@ class DQN():
 
 
     def train_on_batch(self, state, action, reward, state_, terminal):
+        self.is_training = True
         fd = self.get_feed_dict(state, action, reward, state_,terminal, self.learning_rate,
                                 self.keep_prob)
         _, train_loss, summary = self.sess.run(
@@ -162,6 +164,7 @@ class DQN():
             self.w['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
+            out = tf.layers.batch_normalization(out, training=self.is_training)
 
         with tf.variable_scope("conv2_train"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer)
@@ -171,6 +174,7 @@ class DQN():
             self.w['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
+            out = tf.layers.batch_normalization(out, training=self.is_training)
 
         with tf.variable_scope("conv3_train"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer)
@@ -180,6 +184,7 @@ class DQN():
             self.w['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
+            out = tf.layers.batch_normalization(out, training=self.is_training)
 
             shape = out.get_shape().as_list()
             out_flat = tf.reshape(out, [-1, reduce(lambda x,y: x * y, shape[1:])])
@@ -206,12 +211,13 @@ class DQN():
     def add_logits_op_target(self):
         with tf.variable_scope("conv1_target"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=self.initializer)
-            conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
+            conv = tf.nn.conv2d(self.state_target, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
             b = tf.get_variable('bc1', [32], initializer=self.initializer)
             self.w_target['wc1'] = w
             self.w_target['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
+            out = tf.layers.batch_normalization(out, training=self.is_training)
 
         with tf.variable_scope("conv2_target"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer)
@@ -221,6 +227,7 @@ class DQN():
             self.w_target['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
+            out = tf.layers.batch_normalization(out, training=self.is_training)
 
         with tf.variable_scope("conv3_target"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer)
@@ -230,6 +237,8 @@ class DQN():
             self.w_target['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
             out = tf.nn.relu(out)
+            out = tf.layers.batch_normalization(out, training=self.is_training)
+
             shape = out.get_shape().as_list()
             out_flat = tf.reshape(out, [-1, reduce(lambda x,y: x * y, shape[1:])])
             shape = out_flat.get_shape().as_list()
@@ -280,12 +289,14 @@ class DQN():
         self.add_summary()
 
     def predict_batch(self, state_input):
+        self.is_trainig = False
         fd = self.get_feed_dict(state_input, dropout=1.0)
         q, a = self.sess.run([self.q_out, self.q_action], feed_dict=fd)
         return q, a
 
     def run_epoch(self, train, epoch):
         # progbar stuff for logging
+        self.is_training = True
         batch_size = self.batch_size
         nbatches = (len(train) + batch_size - 1) // batch_size
         prog = Progbar(target=nbatches)

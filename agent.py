@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 class Agent():
 
 
-    def __init__(self, batch_size=128,history_len=4,mem_size=20000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.1, epsilon_decay_episodes=10000, screen_height=80, screen_width=112, train_freq=2, update_freq=10):
+    def __init__(self, batch_size=256,history_len=4,mem_size=50000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.1, epsilon_decay_episodes=10000, screen_height=80, screen_width=112, train_freq=2, update_freq=10):
         self.batch_size = batch_size
         self.mem_size = mem_size
         self.frame_skip = frame_skip
@@ -55,7 +55,7 @@ class Agent():
         while not done:
             ob_, reward, done, info = self.env.step(ac)
             if skip == self.frame_skip: # TODO this might be buggy
-                self.observe(ob_, ac, reward, done) #komisch, hier den nächsten screen zu nehmen...
+                self.observe(ob, ac, reward, done) #komisch, hier den nächsten screen zu nehmen...
                 t += 1
                 skip = 0
                 ac =  self.policy(self.history.get())

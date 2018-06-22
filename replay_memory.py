@@ -57,8 +57,8 @@ class ReplayMemory:
                 if self.terminals[(index - self.history_len): index].any():
                     continue
                 break
-            self.pre[len(indices)] = self.getState(index - 1)
-            self.post[len(indices)] = self.getState(index)
+            self.pre[len(indices)] = self.getState(index)
+            self.post[len(indices)] = self.getState(index + 1)
             indices.append(index)
 
         actions = self.actions[indices]
