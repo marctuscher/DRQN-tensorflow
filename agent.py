@@ -38,7 +38,7 @@ class Agent():
     def safe(self, ob, ac, reward, ob_, t):
         self.last_insert += 1 % self.mem_size
         if self.last_insert == self.mem_size -1:
-            self.filled_once = True
+            self._filled_once = True
         self.memory_states[self.last_insert][0] = self.rgb2gray(resize(ob, (80, 112,3)))
         self.memory_states_[self.last_insert][0] = self.rgb2gray(resize(ob_, (80,112,3)))
         self.memory_actions[self.last_insert] = int("".join(map(str, ac)), 2)
@@ -66,7 +66,7 @@ class Agent():
             self.run_episode()
             if i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
-            if i != 0 and i % 100 == 0 and self.filled_once:
+            if i != 0 and i % 100 == 0 and self._filled_once:
                 print("last insert: ", self.last_insert)
                 data=list(zip(*[self.memory_states, self.memory_actions, self.memory_rewards, self.memory_states_]))
                 self.net.train(data)
