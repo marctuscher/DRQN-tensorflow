@@ -24,7 +24,7 @@ class DQN():
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         # self.debug = True
-        self.nepochs =5
+        self.nepochs = 15
         self.keep_prob = 0.8
         self.batch_size = 64
         self.lr_method = "adam"

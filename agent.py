@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 class Agent():
 
 
-    def __init__(self, mem_size=50000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.1, epsilon_decay_episodes=10000):
+    def __init__(self, mem_size=10000, network_type="dqn", frame_skip=4, epsilon_start=0.2, epsilon_end=0.1, epsilon_decay_episodes=10000):
         self.env = retro.make(game='Airstriker-Genesis', state='Level1.state',record='.')
         self.memory_states = np.zeros((mem_size,1, 80, 112))
         self.memory_states_ = np.zeros((mem_size,1, 80, 112))
@@ -48,15 +48,19 @@ class Agent():
         t = 0
         done = False
         skip = 0
+        ac =  self.policy(ob)
         while not done:
-            ac =  self.policy(ob)
             ob_, reward, done, info = self.env.step(ac)
             if skip == self.frame_skip or done: # TODO this might be buggy 
                 self.safe(ob, ac, reward, ob_, t)
                 t += 1
-                skip = 0 
+                skip = 0
+                ac =  self.policy(ob)
             else:
                 skip += 1
+
+            if t % 3 == 0:
+                self.env.render()
             ob = ob_
 
     def train(self):
@@ -64,7 +68,7 @@ class Agent():
             self.run_episode()
             if i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
-            if i != 0 and i % 85 == 0 and self._filled_once:
+            if i != 0 and i % 5 == 0 and self._filled_once:
                 print("last insert: ", self.last_insert)
                 data=list(zip(*[self.memory_states, self.memory_actions, self.memory_rewards, self.memory_states_]))
                 self.net.train(data)
