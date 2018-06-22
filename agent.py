@@ -25,6 +25,7 @@ class Agent():
         self.epsilon_decay = (epsilon_start-epsilon_end)/epsilon_decay_episodes
         self.epsilon = epsilon_start
         self.epsilon_decay_episodes = epsilon_decay_episodes
+        self._filled_once = False
 
     def policy(self, state):
         if np.random.rand()< self.epsilon:
@@ -35,15 +36,14 @@ class Agent():
 
 
     def safe(self, ob, ac, reward, ob_, t):
-        self.last_insert += 1
-        if not self.last_insert >= self.mem_size:
-            self.memory_states[self.last_insert][0] = self.rgb2gray(resize(ob, (80, 112,3)))
-            self.memory_states_[self.last_insert][0] = self.rgb2gray(resize(ob_, (80,112,3)))
-            self.memory_actions[self.last_insert] = int("".join(map(str, ac)), 2)
-            self.memory_rewards[self.last_insert] = reward
-            self.memory_t[self.last_insert] = t
-        else:
-            self.last_insert = -1
+        self.last_insert += 1 % self.mem_size
+        if self.last_insert == self.mem_size -1:
+            self.filled_once = True
+        self.memory_states[self.last_insert][0] = self.rgb2gray(resize(ob, (80, 112,3)))
+        self.memory_states_[self.last_insert][0] = self.rgb2gray(resize(ob_, (80,112,3)))
+        self.memory_actions[self.last_insert] = int("".join(map(str, ac)), 2)
+        self.memory_rewards[self.last_insert] = reward
+        self.memory_t[self.last_insert] = t
 
     def run_episode(self):
         ob = self.env.reset()
@@ -66,7 +66,7 @@ class Agent():
             self.run_episode()
             if i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
-            if i != 0 and i % 100 == 0:
+            if i != 0 and i % 100 == 0 and self.filled_once:
                 print("last insert: ", self.last_insert)
                 data=list(zip(*[self.memory_states, self.memory_actions, self.memory_rewards, self.memory_states_]))
                 self.net.train(data)
