@@ -36,7 +36,7 @@ class ReplayMemory:
 
         index = index % self.count
         if index >= self.history_len - 1:
-            return self.screens[(index - (self.history_len -1)): (index +1)]
+            return self.screens[(index - (self.history_len -1)): (index + 1)]
         else:
             indices = [(index - i) % self.count for i in reversed(range(self.history_len))]
             return self.screens[indices]
@@ -57,8 +57,8 @@ class ReplayMemory:
                 if self.terminals[(index - self.history_len): index].any():
                     continue
                 break
-            self.pre[len(indices)] = self.getState(index)
-            self.post[len(indices)] = self.getState(index + 1)
+            self.pre[len(indices)] = self.getState(index - 1)
+            self.post[len(indices)] = self.getState(index)
             indices.append(index)
 
         actions = self.actions[indices]
