@@ -24,14 +24,15 @@ class DQN():
         self.pred_before_train= pred_before_train
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
+        # self.initializer = tf.xavier_initializer()
         # self.debug = True
         self.nepochs = 30
         self.keep_prob = 0.8
         self.batch_size = 32
         self.lr_method = "rmsprop"
-        self.learning_rate = 0.001
-        self.lr_decay = 0.9999
-        self.clip = 1  # if negative, no clipping
+        self.learning_rate = 0.00025
+        self.lr_decay = 1.0
+        self.clip = -1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         self.sess = None
         self.saver = None
@@ -91,7 +92,6 @@ class DQN():
                                                  self.sess.graph)
 
     def inject_summary(self, tag_dict):
-
         summary_str_lists = self.sess.run([self.summary_ops[tag] for tag in tag_dict],{
             self.summary_placeholders[tag]: value for tag, value in tag_dict.items()
         })
@@ -200,8 +200,8 @@ class DQN():
             self.w['wc1'] = w
             self.w['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.nn.relu(out)
             out = tf.layers.batch_normalization(out, training=self.is_training)
+            out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_train"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer)
@@ -210,8 +210,8 @@ class DQN():
             self.w['wc2'] = w
             self.w['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.nn.relu(out)
             out = tf.layers.batch_normalization(out, training=self.is_training)
+            out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_train"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer)
@@ -220,8 +220,8 @@ class DQN():
             self.w['wc3'] = w
             self.w['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.nn.relu(out)
             out = tf.layers.batch_normalization(out, training=self.is_training)
+            out = tf.nn.relu(out)
 
             shape = out.get_shape().as_list()
             out_flat = tf.reshape(out, [-1, reduce(lambda x,y: x * y, shape[1:])])
@@ -234,6 +234,7 @@ class DQN():
             self.w["bf1"] = b
             out = tf.nn.xw_plus_b(out_flat, w, b)
             out = tf.nn.relu(out)
+            out = tf.nn.dropout(out, self.dropout)
 
         with tf.variable_scope("out_train"):
             w = tf.get_variable('wout', [512, self.n_actions], dtype=tf.float32, initializer=self.initializer)
@@ -253,8 +254,8 @@ class DQN():
             self.w_target['wc1'] = w
             self.w_target['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.nn.relu(out)
             out = tf.layers.batch_normalization(out, training=False)
+            out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_target"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer, trainable=False)
@@ -263,8 +264,8 @@ class DQN():
             self.w_target['wc2'] = w
             self.w_target['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.nn.relu(out)
             out = tf.layers.batch_normalization(out, training=False)
+            out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_target"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer, trainable=False)
@@ -273,8 +274,8 @@ class DQN():
             self.w_target['wc3'] = w
             self.w_target['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.nn.relu(out)
             out = tf.layers.batch_normalization(out, training=False)
+            out = tf.nn.relu(out)
 
             shape = out.get_shape().as_list()
             out_flat = tf.reshape(out, [-1, reduce(lambda x,y: x * y, shape[1:])])
@@ -317,9 +318,16 @@ class DQN():
     def add_loss_op_target(self):
         action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
         train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
-        delta = tf.square(self.target_val - train)
-        self.loss = tf.reduce_mean(delta)
+        delta = self.target_val - train
+        self.loss = tf.reduce_mean(self.clipping(delta))
         self.loss_summary = tf.summary.scalar("loss", self.loss)
+
+
+    def clipping(self, x):
+        try:
+            return tf.select(tf.abs(x)< 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
+        except:
+            return tf.where(tf.abs(x)< 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
 
     def build(self):
         self.add_placeholders()

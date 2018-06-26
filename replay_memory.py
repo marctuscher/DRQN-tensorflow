@@ -1,6 +1,6 @@
 import numpy as np
 import random
-
+from numba import jit
 
 class ReplayMemory:
 
@@ -30,7 +30,6 @@ class ReplayMemory:
         self.terminals[self.current] = terminal
         self.count = max(self.count, self.current + 1)
         self.current = (self.current + 1) % self.mem_size
-
 
     def getState(self, index):
 

@@ -5,13 +5,14 @@ from tqdm import tqdm
 from PIL import Image
 from history import History
 from replay_memory import ReplayMemory
-from skimage.transform import resize
+from cv2 import resize
 from skimage import color
 import matplotlib.pyplot as plt
+from numba import jit
 class Agent():
 
 
-    def __init__(self, batch_size=128,history_len=4,mem_size=80000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.2, epsilon_decay_episodes=200000, screen_height=82, screen_width=82, train_freq=1, update_freq=5):
+    def __init__(self, batch_size=32,history_len=4,mem_size=40000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.2, epsilon_decay_episodes=50000, screen_height=82, screen_width=82, train_freq=1, update_freq=4):
         self.batch_size = batch_size
         self.mem_size = mem_size
         self.frame_skip = frame_skip
@@ -54,18 +55,14 @@ class Agent():
         t, episode_len, total_reward, total_q, skip, done =0, 0.0, 0.0, 0.0, 0.0, False
         q, ac =  self.policy(self.history.get())
         while not done:
-            ob_, reward, done, info = self.env.step(ac)
-            if skip == self.frame_skip: # TODO this might be buggy
-                self.observe(ob_, ac, reward, done) #komisch, hier den nächsten screen zu nehmen...
-                t, skip += 1, 0
-                q, ac =  self.policy(self.history.get())
-            else:
-                skip += 1
-            # if t % 3 == 0:
-            #     self.env.render()
-            ob = ob_
+            rewards = 0
+            for _ in range(self.frame_skip):
+                ob_, reward, done, info = self.env.step(ac)
+                rewards += reward
+            self.observe(ob_, ac, rewards, done)
+            q, ac =  self.policy(self.history.get())
             episode_len += 1
-            total_reward += reward
+            total_reward += rewards
             total_q += q
         return episode_len, total_reward, total_q
 
@@ -74,10 +71,10 @@ class Agent():
             episode_len, total_reward, total_q = self.run_episode()
             if self.i % self.train_freq == 0:
                 for i in range(1):
-                    if self.pred_before_train:
-                        self.net.train_on_batch_target(*self.replay_memory.sample_batch())
-                    else:
-                        self.net.train_on_batch(*self.replay_memory.sample_batch())
+                    # if self.pred_before_train:
+                    self.net.train_on_batch_target(*self.replay_memory.sample_batch())
+                    # else:
+                        # self.net.train_on_batch(*self.replay_memory.sample_batch())
                     if self.net.train_steps < self.epsilon_decay_episodes:
                         self.epsilon -= self.epsilon_decay
                 sum_dict = {'total_reward': float(total_reward),
@@ -94,7 +91,9 @@ class Agent():
                 self.net.save_session()
 
     def _preprocess(self, ob):
-        return resize(color.rgb2gray(ob), (self.screen_height, self.screen_width))
+        def rgb2gray(ob):
+            return np.dot(ob[...,:3], [0.299, 0.587, 0.114])
+        return resize(rgb2gray(ob)/255, (self.screen_height, self.screen_width))
 
     def _to_actionspace(self, action):
         return list(map(int, list(format(action, '0{}b'.format(self.env.action_space.n)))))
