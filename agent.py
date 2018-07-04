@@ -1,4 +1,5 @@
 import retro
+import gym
 import numpy as np
 from networks.dqn import DQN
 from tqdm import tqdm
@@ -12,7 +13,7 @@ from numba import jit
 class Agent():
 
 
-    def __init__(self, batch_size=32,history_len=4,mem_size=40000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.2, epsilon_decay_episodes=50000, screen_height=82, screen_width=82, train_freq=1, update_freq=4):
+    def __init__(self, batch_size=32,history_len=4,mem_size=40000, network_type="dqn", frame_skip=4, epsilon_start=1, epsilon_end=0.2, epsilon_decay_episodes=50000, screen_height=42, screen_width=42, train_freq=1, update_freq=4):
         self.batch_size = batch_size
         self.mem_size = mem_size
         self.frame_skip = frame_skip
@@ -25,9 +26,10 @@ class Agent():
         self.train_freq = train_freq
         self.update_freq = update_freq
         self.pred_before_train = True
-        self.env = retro.make(game='Breakout-Atari2600', state='Start',record='.')
+        self.env = gym.make('Breakout-v0')
+        self.env.frame_skip=4
         print("actionspace_n: {}".format(self.env.action_space.n))
-        self.net = DQN(2**self.env.action_space.n,self.history_len, self.screen_width, self.screen_height, pred_before_train=self.pred_before_train)
+        self.net = DQN(self.env.action_space.n,self.history_len, self.screen_width, self.screen_height, pred_before_train=self.pred_before_train)
         self.history = History(self.batch_size, self.history_len, self.screen_height, self.screen_width)
         self.replay_memory = ReplayMemory(self.mem_size, self.screen_height, self.screen_width, self.batch_size, self.history_len)
         self.net.build()
@@ -96,7 +98,7 @@ class Agent():
         return resize(rgb2gray(ob)/255, (self.screen_height, self.screen_width))
 
     def _to_actionspace(self, action):
-        return list(map(int, list(format(action, '0{}b'.format(self.env.action_space.n)))))
+        return action # list(map(int, list(format(action, '0{}b'.format(self.env.action_space.n)))))
 
     def _to_action_int(self, action):
-        return int("".join(map(str, action)), 2)
+        return action #int("".join(map(str, action)), 2)
