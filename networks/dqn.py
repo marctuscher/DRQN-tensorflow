@@ -31,7 +31,7 @@ class DQN():
         self.batch_size = 32
         self.lr_method = "rmsprop"
         self.learning_rate = 0.00025
-        self.lr_decay = 1.0
+        self.lr_decay = .96
         self.clip = -1  # if negative, no clipping
         self.nepoch_no_imprv = 5
         self.sess = None
@@ -98,30 +98,6 @@ class DQN():
         for summ in summary_str_lists:
             self.file_writer.add_summary(summ, self.train_steps)
 
-    def train(self, train):
-        best_score = 0
-        nepoch_no_imprv = 0  # for early stopping
-        # self.add_summary()  # tensorboard
-
-        for epoch in range(self.nepochs):
-            print("Epoch {:} out of {:}\n".format(epoch + 1,
-                                                self.nepochs))
-            self.run_epoch(train, epoch)
-            self.learning_rate *= self.lr_decay  # decay learning rate
-            self.update_target()
-
-
-    def train_on_batch(self, state, action, reward, state_, terminal):
-        self.is_training = True
-        fd = self.get_feed_dict(state, action, reward, state_,terminal, self.learning_rate,
-                                self.keep_prob)
-        _, train_loss, loss_summary = self.sess.run(
-            [self.train_op, self.loss, self.loss_summary], feed_dict=fd
-        )
-        self.file_writer.add_summary(loss_summary, self.train_steps)
-        if self.train_steps % 40 == 0 and self.train_steps != 0:
-            self.learning_rate *= self.lr_decay  # decay learning rate
-        self.train_steps += 1
 
     def train_on_batch_target(self, state, action, reward, state_, terminal):
         self.is_training = True
@@ -139,17 +115,9 @@ class DQN():
             }
         )
         self.file_writer.add_summary(loss_summary, self.train_steps)
-        if self.train_steps % 40 == 0 and self.train_steps != 0:
+        if self.train_steps % 10000 == 0 and self.train_steps != 0:
             self.learning_rate *= self.lr_decay  # decay learning rate
-
         self.train_steps += 1
-
-    def evaluate(self, test):
-        print("Testing model over test set")
-        metrics = self.run_evaluate(test)
-        msg = " - ".join(["{} {:04.2f}".format(k, v)
-                          for k, v in metrics.items()])
-        print(msg)
 
     def add_placeholders(self):
         self.w = {}
@@ -193,6 +161,7 @@ class DQN():
 
 
     def add_logits_op_train(self):
+        self.state = tf.divide(self.state, 255)
         with tf.variable_scope("conv1_train"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=self.initializer)
             conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
@@ -247,6 +216,7 @@ class DQN():
             self.q_action = tf.argmax(self.q_out, axis=1)
 
     def add_logits_op_target(self):
+        self.state_target = tf.divide(self.state_target, 255)
         with tf.variable_scope("conv1_target"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=self.initializer, trainable=False)
             conv = tf.nn.conv2d(self.state_target, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
@@ -306,14 +276,6 @@ class DQN():
         for name in self.w:
             self.target_w_assign[name] = self.w_target[name].assign(self.w[name].eval(session=self.sess))
 
-    def add_loss_op(self):
-        action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
-        target_one_hot = tf.one_hot(self.q_target_action, self.n_actions, 1.0, 0.0, name='target_action_one_hot')
-        target = tf.reduce_sum(self.q_target_out * target_one_hot, reduction_indices=1, name='target')
-        train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
-        loss = tf.square(tf.subtract(tf.add(tf.cast(self.reward, dtype=tf.float32),tf.subtract(tf.constant(1.0),tf.cast(self.terminal, dtype=tf.float32)) * self.gamma * target), train))
-        self.loss = tf.reduce_mean(loss)
-        self.loss_summary = tf.summary.scalar("loss", self.loss)
 
     def add_loss_op_target(self):
         action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
@@ -333,10 +295,7 @@ class DQN():
         self.add_placeholders()
         self.add_logits_op_train()
         self.add_logits_op_target()
-        if self.pred_before_train:
-            self.add_loss_op_target()
-        else:
-            self.add_loss_op()
+        self.add_loss_op_target()
         self.add_train_op(self.lr_method, self.lr, self.loss,
                           self.clip)
         self.initialize_session()
@@ -354,23 +313,6 @@ class DQN():
         q = self.sess.run([self.q_target_out], feed_dict=fd)
         return q
 
-    def run_epoch(self, train, epoch):
-        # progbar stuff for logging
-        self.is_training = True
-        batch_size = self.batch_size
-        nbatches = (len(train) + batch_size - 1) // batch_size
-        prog = Progbar(target=nbatches)
-        shuffle(train)
-        for i, (state, action, reward, state_) in enumerate(self.minibatches(train, batch_size)):
-            fd = self.get_feed_dict(state, action, reward, state_, self.learning_rate,
-                                       self.keep_prob)
-            _, train_loss, summary = self.sess.run(
-                [self.train_op, self.loss, self.merged], feed_dict=fd
-            )
-            prog.update(i + 1, [("train loss", train_loss)])
-            # tensorboard
-            if i % 10 == 0:
-                self.file_writer.add_summary(summary, epoch * nbatches + i)
 
 
     def save_session(self):
@@ -383,26 +325,3 @@ class DQN():
     def update_target(self):
         for name in self.w:
             self.sess.run(self.target_w_assign[name])
-
-    def minibatches(self, data, minibatch_size):
-        """
-        Args:
-            data: generator of (sentence, tags) tuples
-            minibatch_size: (int)
-        Yields:
-            list of tuples
-        """
-        action_batch, state_batch, reward_batch, state_batch_ = [], [], [], []
-
-        for (state, action, reward, state_) in data:
-            if len(state_batch) == minibatch_size:
-                yield state_batch, action_batch, reward_batch, state_batch_
-                action_batch, state_batch, reward_batch, state_batch_ = [], [], [], []
-
-            action_batch += [action]
-            reward_batch += [reward]
-            state_batch += [state]
-            state_batch_ += [state_]
-
-        if len(state_batch) != 0:
-            yield state_batch, action_batch, reward_batch, state_batch_

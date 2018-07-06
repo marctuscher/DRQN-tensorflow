@@ -13,7 +13,7 @@ class ReplayMemory:
 
         self.actions = np.empty((self.mem_size), dtype=np.uint16)
         self.rewards = np.empty((self.mem_size), dtype=np.uint32)
-        self.screens = np.empty((self.mem_size, self.screen_height, self.screen_width), dtype=np.float16)
+        self.screens = np.empty((self.mem_size, self.screen_height, self.screen_width), dtype=np.uint8)
         self.terminals = np.empty((self.mem_size,), dtype=np.bool)
         self.count = 0
         self.current = 0
