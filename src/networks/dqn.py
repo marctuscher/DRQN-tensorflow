@@ -35,7 +35,7 @@ class DQN():
         self.nepoch_no_imprv = 5
         self.sess = None
         self.saver = None
-        self.all_tf = not True
+        self.all_tf =  True
         # delete ./out
         if os.path.isdir("./out"):
             shutil.rmtree("./out")
@@ -157,6 +157,8 @@ class DQN():
 
         self.target_val = tf.placeholder(dtype=tf.float32, shape=[None])
         self.target_val_tf = tf.placeholder(dtype=tf.float32, shape=[None, self.n_actions])
+
+        self.learning_rate_step = tf.placeholder("int64", None, name="learning_rate_step")
 
 
     def get_feed_dict(self, state_inputs, action_inputs=None,reward=None, state_target=None, terminal=None, lr=None, dropout=None):
@@ -318,10 +320,7 @@ class DQN():
 
 
     def clipping(self, x):
-        try:
-            return tf.select(tf.abs(x)< 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
-        except:
-            return tf.where(tf.abs(x)< 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
+        return tf.where(tf.abs(x)< 1.0, 0.5 * tf.square(x), tf.abs(x) - 0.5)
 
     def build(self):
         self.add_placeholders()
@@ -335,6 +334,16 @@ class DQN():
                           self.clip)
         self.initialize_session()
         self.init_update()
+
+    def add_lr_op(self):
+        self.learning_rate_op = tf.maximum(self.learning_rate_minimum,
+                                           tf.train.exponential_decay(
+                                               self.learning_rate,
+                                               self.learning_rate_step,
+                                               self.learning_rate_decay_step,
+                                               self.learning_rate_decay,
+                                               staircase=True
+                                           ))
 
     def predict_batch(self, state_input):
         self.is_training = False

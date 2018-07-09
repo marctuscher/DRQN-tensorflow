@@ -1,14 +1,14 @@
-from .env_wrapper import GymWrapper
+from src.env_wrapper import GymWrapper
 import numpy as np
-from .networks.dqn import DQN
+from src.networks.dqn import DQN
 from tqdm import tqdm
-from .history import History
-from .replay_memory import ReplayMemory
+from src.history import History
+from src.replay_memory import ReplayMemory
 
 class Agent():
 
-    def __init__(self, batch_size=32, history_len=4, mem_size=800000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
-                 epsilon_decay_episodes=500000, screen_height=84, screen_width=84, train_freq=4, update_freq=10000,
+    def __init__(self, batch_size=32, history_len=4, mem_size=700000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
+                 epsilon_decay_episodes=500000, screen_height=84, screen_width=84, train_freq=2, update_freq=10000,
                  learn_start=10000, dir_save="saved_session/", restore=False, train_start=50000):
         self.learn_start = learn_start
         self.batch_size = batch_size
@@ -34,7 +34,9 @@ class Agent():
                                           self.history_len, dir_save= dir_save)
         self.net.build()
         self.i = 0
-        self.net.add_summary(['total_reward', 'avg_reward', 'avg_q', 'episode_len', 'epsilon', 'learning_rate'])
+        self.net.add_summary(['total_reward', 'episode_num', 'avg_q', 'episode_len', 'epsilon', 'learning_rate'])
+        self.rewards = 0
+        self.lens = 0
         if restore:
             self.load()
 
@@ -55,7 +57,9 @@ class Agent():
 
     def train(self):
         self.env_wrapper.new_random_game()
-        total_reward, avg_reward, episode_len, avq_q, eps = 0, 0, 0, 0, 0
+        episode_len, reward, counter = 0.0, 0.0, 1.0
+        episode_num = 0.0
+
         for _ in range(self.history_len):
             self.history.add(self.env_wrapper.screen())
         for self.i in tqdm(range(self.i, 10000000)):
@@ -63,28 +67,33 @@ class Agent():
             self.env_wrapper.act_simple(action)
             self.observe(action)
             if self.env_wrapper.terminal:
-                episode_len += 1
-                avg_reward = total_reward / episode_len
-                sum_dict = {'total_reward': float(total_reward),
-                            'avg_reward': float(avg_reward),
-                            'episode_len': float(episode_len),
-                            'epsilon': self.epsilon,
-                            'learning_rate': self.net.learning_rate
-                            }
-                self.net.inject_summary(sum_dict)
-                episode_len = 0
-                total_reward = 0
+                self.lens += 1
+                episode_num += 1
+                self.rewards += self.env_wrapper.reward
+                counter += 1
                 self.env_wrapper.new_random_game()
             else:
-                episode_len += 1
-                total_reward += self.env_wrapper.reward
+                self.lens += 1
+                self.rewards += self.env_wrapper.reward
                 #avq_q += q
             if self.i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
             if self.i % self.train_freq == 0 and self.i > self.train_start:
-                self.net.train_on_batch_target(*self.replay_memory.sample_batch())
+                self.net.train_on_batch_all_tf(*self.replay_memory.sample_batch())
             if self.i % self.update_freq == 0:
                 self.net.update_target()
+            if self.i % 1000 == 0 and self.i > self.train_start:
+                sum_dict = {
+                            'total_reward': float(self.rewards/counter),
+                            'episode_len': float(self.lens/counter),
+                    'episode_num': float(episode_num/counter),
+                            'epsilon': self.epsilon,
+                            'learning_rate': self.net.learning_rate
+                            }
+                counter = 0
+                self.lens, self.rewards = 0.0, 0.0
+                episode_num = 0.0
+                self.net.inject_summary(sum_dict)
             if self.i % 500000 == 0:
                 self.save()
 
