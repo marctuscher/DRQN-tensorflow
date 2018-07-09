@@ -1,9 +1,9 @@
-from env_wrapper import GymWrapper
+from .env_wrapper import GymWrapper
 import numpy as np
-from networks.dqn import DQN
+from .networks.dqn import DQN
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from history import History
+from .history import History
 from replay_memory import ReplayMemory
 
 class Agent():
