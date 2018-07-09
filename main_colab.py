@@ -8,6 +8,3 @@ class Main():
 
     def train(self, steps):
         self.agent.train(steps)
-
-main = Main()
-main.train(10000000)

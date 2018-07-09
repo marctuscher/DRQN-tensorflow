@@ -56,14 +56,14 @@ class Agent():
         self.history.add(self.env_wrapper.screen())
         self.replay_memory.add(self.env_wrapper.screen(), self.env_wrapper.reward, action, self.env_wrapper.terminal)
 
-    def train(self):
+    def train(self, steps):
         self.env_wrapper.new_random_game()
         episode_len, reward, counter = 0.0, 0.0, 1.0
         episode_num = 0.0
 
         for _ in range(self.history_len):
             self.history.add(self.env_wrapper.screen())
-        for self.i in tqdm(range(self.i, self.train_steps)):
+        for self.i in tqdm(range(self.i, steps)):
             action = self.policy(self.history.get())
             self.env_wrapper.act(action)
             self.observe(action)
