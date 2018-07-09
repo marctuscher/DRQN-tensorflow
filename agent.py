@@ -9,7 +9,7 @@ class Agent():
 
     def __init__(self, batch_size=32, history_len=4, mem_size=800000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
                  epsilon_decay_episodes=500000, screen_height=84, screen_width=84, train_freq=4, update_freq=10000,
-                 learn_start=10000, dir_save="saved_session/", restore=True, train_start=50000):
+                 learn_start=10000, dir_save="saved_session/", restore=False, train_start=50000):
         self.learn_start = learn_start
         self.batch_size = batch_size
         self.mem_size = mem_size
