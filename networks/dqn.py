@@ -2,9 +2,7 @@ import numpy as np
 import os
 import tensorflow as tf
 import shutil
-from networks.keras_progbar import Progbar
 from functools import reduce
-from random import shuffle
 from tensorflow.python import debug as tf_debug
 
 # from utilities.keras_progbar import Progbar
