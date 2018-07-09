@@ -4,7 +4,7 @@ import numpy as np
 
 class GymWrapper():
 
-    def __init__(self, env_name, screen_width, screen_height):
+    def __init__(self, env_name, screen_width, screen_height, frame_skip):
         self.env = gym.make(env_name)
         self.screen_width, self.screen_height = screen_width, screen_height
         self._screen = None
@@ -13,6 +13,7 @@ class GymWrapper():
         self.info = {'ale.lives': 0}
         self.random_start = 10
         self.action_repeat = 4
+        self.frame_skip = frame_skip
 
     def new_game(self):
         if self.lives == 0:
@@ -42,8 +43,7 @@ class GymWrapper():
     def act(self, action):
         cumulated = 0
         start_lives = self.lives
-        #self.env.render()
-        for _ in range(self.action_repeat):
+        for _ in range(self.frame_skip):
             self._step(action)
             cumulated = cumulated +self.reward
             if start_lives > self.lives:

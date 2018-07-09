@@ -7,10 +7,11 @@ from src.replay_memory import ReplayMemory
 
 class Agent():
 
-    def __init__(self, batch_size=32, history_len=4, mem_size=700000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
-                 epsilon_decay_episodes=500000, screen_height=84, screen_width=84, train_freq=2, update_freq=10000,
+    def __init__(self, train_steps=10000000,batch_size=64, history_len=4, mem_size=700000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
+                 epsilon_decay_episodes=100000, screen_height=84, screen_width=84, train_freq=4, update_freq=2000,
                  learn_start=10000, dir_save="saved_session/", restore=False, train_start=50000):
         self.learn_start = learn_start
+        self.train_steps = train_steps
         self.batch_size = batch_size
         self.mem_size = mem_size
         self.frame_skip = frame_skip
@@ -25,7 +26,7 @@ class Agent():
         self.pred_before_train = True
         self.dir_save = dir_save
         self.train_start = train_start
-        self.env_wrapper = GymWrapper('BreakoutDeterministic-v0', self.screen_height, self.screen_width)
+        self.env_wrapper = GymWrapper('BreakoutDeterministic-v0', self.screen_height, self.screen_width, frame_skip=frame_skip)
         print("actionspace_n: {}".format(self.env_wrapper.env.action_space.n))
         self.net = DQN(self.env_wrapper.env.action_space.n, self.history_len, self.screen_width, self.screen_height,
                        pred_before_train=self.pred_before_train, dir_save= dir_save)
@@ -62,9 +63,9 @@ class Agent():
 
         for _ in range(self.history_len):
             self.history.add(self.env_wrapper.screen())
-        for self.i in tqdm(range(self.i, 10000000)):
+        for self.i in tqdm(range(self.i, self.train_steps)):
             action = self.policy(self.history.get())
-            self.env_wrapper.act_simple(action)
+            self.env_wrapper.act(action)
             self.observe(action)
             if self.env_wrapper.terminal:
                 self.lens += 1
@@ -79,7 +80,7 @@ class Agent():
             if self.i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
             if self.i % self.train_freq == 0 and self.i > self.train_start:
-                self.net.train_on_batch_all_tf(*self.replay_memory.sample_batch())
+                self.net.train_on_batch_target(*self.replay_memory.sample_batch())
             if self.i % self.update_freq == 0:
                 self.net.update_target()
             if self.i % 1000 == 0 and self.i > self.train_start:
