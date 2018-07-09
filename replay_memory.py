@@ -1,10 +1,10 @@
 import numpy as np
 import random
 from numba import jit
-
+import os
 class ReplayMemory:
 
-    def __init__(self, mem_size, screen_height, screen_width, batch_size, history_len):
+    def __init__(self, mem_size, screen_height, screen_width, batch_size, history_len, dir_save):
         self.mem_size = mem_size
         self.batch_size = batch_size
         self.screen_height = screen_height
@@ -13,13 +13,29 @@ class ReplayMemory:
 
         self.actions = np.empty((self.mem_size), dtype=np.uint16)
         self.rewards = np.empty((self.mem_size), dtype=np.uint32)
-        self.screens = np.empty((self.mem_size, self.screen_height, self.screen_width), dtype=np.uint8)
+        self.screens = np.empty((self.mem_size, self.screen_height, self.screen_width), dtype=np.float16)
         self.terminals = np.empty((self.mem_size,), dtype=np.bool)
         self.count = 0
         self.current = 0
+        self.dir_save = dir_save + "memory/"
+
+        if not os.path.exists(self.dir_save):
+            os.makedirs(self.dir_save)
 
         self.pre = np.empty((self.batch_size, self.history_len, self.screen_height, self.screen_width), dtype=np.float16)
         self.post = np.empty((self.batch_size, self.history_len, self.screen_height, self.screen_width), dtype=np.float16)
+
+    def save(self):
+        np.save(self.dir_save + "screens.npy", self.screens)
+        np.save(self.dir_save + "actions.npy", self.actions)
+        np.save(self.dir_save + "rewards.npy", self.rewards)
+        np.save(self.dir_save + "terminals.npy", self.terminals)
+
+    def load(self):
+        self.screens = np.load(self.dir_save + "screens.npy")
+        self.actions = np.load(self.dir_save + "actions.npy")
+        self.rewards = np.load(self.dir_save + "rewards.npy")
+        self.terminals = np.load(self.dir_save + "terminals.npy")
 
     def add(self, screen, reward, action, terminal):
         assert screen.shape == (self.screen_height, self.screen_width)

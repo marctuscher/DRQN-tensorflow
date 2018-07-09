@@ -14,7 +14,7 @@ This class instantiates a neural network for regression on a specific dataset
 """
 class DQN():
 
-    def __init__(self, n_actions, history_len, screen_width, screen_height, gamma=0.99, debug=False, pred_before_train=True):
+    def __init__(self, n_actions, history_len, screen_width, screen_height, gamma=0.99, debug=False, pred_before_train=True, dir_save=None):
         self.n_actions = n_actions
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -22,6 +22,7 @@ class DQN():
         self.debug = debug
         self.history_len = history_len
         self.pred_before_train= pred_before_train
+        self.dir_save = dir_save
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         # self.initializer = tf.xavier_initializer()
@@ -36,18 +37,15 @@ class DQN():
         self.nepoch_no_imprv = 5
         self.sess = None
         self.saver = None
+        self.all_tf = not True
         # delete ./out
         if os.path.isdir("./out"):
             shutil.rmtree("./out")
         self.dir_output = "./out"
-        self.dir_model = "./model"
+        self.dir_model = self.dir_save + "/net/"
         self.train_steps = 0
         self.is_training = False
 
-    def reinitialize_weights(self, scope_name):
-        variables = tf.contrib.framework.get_variables(scope_init)
-        name = tf.variables_initializer(variables)
-        self.sess.run(init)
 
     def add_train_op(self, lr_method, lr, loss, clip=-1):
         _lr_m = lr_method.lower()  # lower to make sure
@@ -105,8 +103,8 @@ class DQN():
         terminal = np.array(terminal) + 0.
         max_target = np.max(target_val, axis=1)
         target = (1. - terminal) * self.gamma * max_target + reward
-        _, train_loss, loss_summary = self.sess.run(
-            [self.train_op, self.loss, self.loss_summary], feed_dict={
+        _,q , train_loss, loss_summary, q_summary = self.sess.run(
+            [self.train_op, self.q_out,self.loss, self.loss_summary, self.avg_q_summary], feed_dict={
                 self.state : state,
                 self.action : action,
                 self.target_val: target,
@@ -115,9 +113,33 @@ class DQN():
             }
         )
         self.file_writer.add_summary(loss_summary, self.train_steps)
-        if self.train_steps % 10000 == 0 and self.train_steps != 0:
+        self.file_writer.add_summary(q_summary, self.train_steps)
+        if self.train_steps % 100000 == 0 and self.train_steps != 0:
             self.learning_rate *= self.lr_decay  # decay learning rate
         self.train_steps += 1
+
+    def train_on_batch_all_tf(self, state, action, reward, state_, terminal):
+        self.is_training = True
+        terminal = np.array(terminal) + 0.
+        target_val_tf = self.q_target_out.eval({self.state_target: state_}, session=self.sess)
+        _,q , train_loss, loss_summary, q_summary = self.sess.run(
+            [self.train_op, self.q_out,self.loss, self.loss_summary, self.avg_q_summary], feed_dict={
+                self.state : state,
+                self.action : action,
+                self.target_val_tf: target_val_tf,
+                self.reward : reward,
+                self.terminal : terminal,
+                self.lr : self.learning_rate,
+                self.dropout : self.keep_prob
+            }
+        )
+        self.file_writer.add_summary(loss_summary, self.train_steps)
+        self.file_writer.add_summary(q_summary, self.train_steps)
+        if self.train_steps % 100000 == 0 and self.train_steps != 0:
+            self.learning_rate *= self.lr_decay  # decay learning rate
+        self.train_steps += 1
+
+
 
     def add_placeholders(self):
         self.w = {}
@@ -136,9 +158,10 @@ class DQN():
         self.terminal = tf.placeholder(dtype=tf.uint8, shape=[None], name="terminal")
 
         self.target_val = tf.placeholder(dtype=tf.float32, shape=[None])
+        self.target_val_tf = tf.placeholder(dtype=tf.float32, shape=[None, self.n_actions])
 
 
-    def get_feed_dict(self, state_inputs, action_inputs=None,reward=None, state_target=None,terminal=None, lr=None, dropout=None):
+    def get_feed_dict(self, state_inputs, action_inputs=None,reward=None, state_target=None, terminal=None, lr=None, dropout=None):
         feed = {
             self.state: state_inputs
         }
@@ -161,35 +184,34 @@ class DQN():
 
 
     def add_logits_op_train(self):
-        self.state = tf.divide(self.state, 255)
         with tf.variable_scope("conv1_train"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=self.initializer)
             conv = tf.nn.conv2d(self.state, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
-            b = tf.get_variable('bc1', [32], initializer=self.initializer)
+            b = tf.get_variable('bc1', [32], initializer=tf.constant_initializer(0.0))
             self.w['wc1'] = w
             self.w['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.layers.batch_normalization(out, training=self.is_training)
+            #out = tf.layers.batch_normalization(out, training=self.is_training)
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_train"):
             w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer)
             conv = tf.nn.conv2d(out, w, [1, 1, 2, 2], padding='VALID', data_format='NCHW')
-            b = tf.get_variable('bc2', [64], initializer=self.initializer)
+            b = tf.get_variable('bc2', [64], initializer=tf.constant_initializer(0.0))
             self.w['wc2'] = w
             self.w['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.layers.batch_normalization(out, training=self.is_training)
+            #out = tf.layers.batch_normalization(out, training=self.is_training)
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_train"):
             w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer)
             conv = tf.nn.conv2d(out, w, [1, 1, 1, 1], padding='VALID', data_format='NCHW')
-            b = tf.get_variable('bc3', [64], initializer=self.initializer)
+            b = tf.get_variable('bc3', [64], initializer=tf.constant_initializer(0.0))
             self.w['wc3'] = w
             self.w['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.layers.batch_normalization(out, training=self.is_training)
+            #out = tf.layers.batch_normalization(out, training=self.is_training)
             out = tf.nn.relu(out)
 
             shape = out.get_shape().as_list()
@@ -197,26 +219,24 @@ class DQN():
             shape = out_flat.get_shape().as_list()
 
         with tf.variable_scope("fully1_train"):
-            w = tf.get_variable('wf1', [shape[1], 512], dtype=tf.float32, initializer=self.initializer)
-            b = tf.get_variable('bf1', [512], dtype=tf.float32, initializer=self.initializer)
+            w = tf.get_variable('wf1', [shape[1], 512], dtype=tf.float32, initializer=tf.random_normal_initializer(0.02))
+            b = tf.get_variable('bf1', [512], dtype=tf.float32, initializer=tf.constant_initializer(0.0))
             self.w["wf1"] = w
             self.w["bf1"] = b
             out = tf.nn.xw_plus_b(out_flat, w, b)
             out = tf.nn.relu(out)
-            out = tf.nn.dropout(out, self.dropout)
+            #out = tf.nn.dropout(out, self.dropout)
 
         with tf.variable_scope("out_train"):
-            w = tf.get_variable('wout', [512, self.n_actions], dtype=tf.float32, initializer=self.initializer)
-            b = tf.get_variable('bout', [self.n_actions], dtype=tf.float32, initializer=self.initializer)
+            w = tf.get_variable('wout', [512, self.n_actions], dtype=tf.float32, initializer=tf.random_normal_initializer(0.02))
+            b = tf.get_variable('bout', [self.n_actions], dtype=tf.float32, initializer=tf.constant_initializer(0.0))
             self.w["wout"] = w
             self.w["bout"] = b
             out = tf.nn.xw_plus_b(out, w, b)
-            out = tf.nn.relu(out)
             self.q_out = out
             self.q_action = tf.argmax(self.q_out, axis=1)
 
     def add_logits_op_target(self):
-        self.state_target = tf.divide(self.state_target, 255)
         with tf.variable_scope("conv1_target"):
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32, initializer=self.initializer, trainable=False)
             conv = tf.nn.conv2d(self.state_target, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
@@ -224,7 +244,7 @@ class DQN():
             self.w_target['wc1'] = w
             self.w_target['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.layers.batch_normalization(out, training=False)
+            #out = tf.layers.batch_normalization(out, training=False)
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_target"):
@@ -234,7 +254,7 @@ class DQN():
             self.w_target['wc2'] = w
             self.w_target['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.layers.batch_normalization(out, training=False)
+            #out = tf.layers.batch_normalization(out, training=False)
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_target"):
@@ -244,7 +264,7 @@ class DQN():
             self.w_target['wc3'] = w
             self.w_target['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
-            out = tf.layers.batch_normalization(out, training=False)
+            #out = tf.layers.batch_normalization(out, training=False)
             out = tf.nn.relu(out)
 
             shape = out.get_shape().as_list()
@@ -265,7 +285,6 @@ class DQN():
             self.w_target["wout"] = w
             self.w_target["bout"] = b
             out = tf.nn.xw_plus_b(out, w, b)
-            out = tf.nn.relu(out)
             self.q_target_out = out
             self.q_target_action = tf.argmax(self.q_target_out, axis=1)
 
@@ -274,7 +293,8 @@ class DQN():
         self.target_w_in = {}
         self.target_w_assign = {}
         for name in self.w:
-            self.target_w_assign[name] = self.w_target[name].assign(self.w[name].eval(session=self.sess))
+            self.target_w_in[name] = tf.placeholder(tf.float32, self.w_target[name].get_shape().as_list(), name=name)
+            self.target_w_assign[name] = self.w_target[name].assign(self.target_w_in[name])
 
 
     def add_loss_op_target(self):
@@ -282,7 +302,21 @@ class DQN():
         train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
         delta = self.target_val - train
         self.loss = tf.reduce_mean(self.clipping(delta))
+        self.avg_q_summary = tf.summary.scalar("avg_q", tf.reduce_mean(self.q_out))
         self.loss_summary = tf.summary.scalar("loss", self.loss)
+
+    def add_loss_op_target_tf(self):
+        target_argmax = tf.argmax(self.target_val_tf, axis=1)
+        target_one_hot = tf.one_hot(target_argmax, self.n_actions, 1.0, 0.0, name="target_one_ho")
+        target_val = tf.reduce_sum(self.target_val_tf * target_one_hot, reduction_indices=1)
+        target = tf.add(tf.multiply((tf.subtract(1.0, tf.cast(self.terminal, dtype=tf.float32))) , tf.multiply(self.gamma , target_val)) , tf.cast(self.reward, dtype=tf.float32))
+        action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
+        train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
+        delta = target - train
+        self.loss = tf.reduce_mean(self.clipping(delta))
+        self.avg_q_summary = tf.summary.scalar("avg_q", tf.reduce_mean(self.q_out))
+        self.loss_summary = tf.summary.scalar("loss", self.loss)
+
 
 
     def clipping(self, x):
@@ -295,7 +329,10 @@ class DQN():
         self.add_placeholders()
         self.add_logits_op_train()
         self.add_logits_op_target()
-        self.add_loss_op_target()
+        if self.all_tf:
+            self.add_loss_op_target_tf()
+        else:
+            self.add_loss_op_target()
         self.add_train_op(self.lr_method, self.lr, self.loss,
                           self.clip)
         self.initialize_session()
@@ -322,6 +359,10 @@ class DQN():
         self.saver.save(self.sess, self.dir_model)
 
 
+
     def update_target(self):
         for name in self.w:
-            self.sess.run(self.target_w_assign[name])
+            self.target_w_assign[name].eval({self.target_w_in[name]: self.w[name].eval(session=self.sess)}, session=self.sess)
+
+    def restore_session(self):
+        self.saver.restore(self.sess, self.dir_model)

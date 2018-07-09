@@ -1,5 +1,5 @@
 import numpy as np
-
+import os
 
 class History:
 
@@ -8,7 +8,6 @@ class History:
         self.history_len = history_len
         self.screen_width = screen_width
         self.screen_height = screen_height
-
         self.history = np.zeros((self.history_len, self.screen_height, self.screen_width), dtype=np.uint8)
 
     def add(self, screen):
