@@ -1,4 +1,3 @@
-import retro
 from env_wrapper import GymWrapper
 import numpy as np
 from networks.dqn import DQN
