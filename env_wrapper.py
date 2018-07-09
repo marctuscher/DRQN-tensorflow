@@ -1,5 +1,5 @@
 import gym
-from utils import resize, rgb2gray
+from .utils import resize, rgb2gray
 import numpy as np
 
 class GymWrapper():
