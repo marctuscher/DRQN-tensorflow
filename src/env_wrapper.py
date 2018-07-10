@@ -11,7 +11,7 @@ class GymWrapper():
         self.reward = 0
         self.terminal = True
         self.info = {'ale.lives': 0}
-        self.random_start = 10
+        self.random_start = 0
         self.action_repeat = 4
         self.frame_skip = frame_skip
 
@@ -19,13 +19,11 @@ class GymWrapper():
         if self.lives == 0:
             self._screen = self.env.reset()
         self._step(0)
-        return self.screen(), 0, 0, self.terminal
 
     def new_random_game(self):
         self.new_game()
-        for _ in range(np.random.randint(0, self.random_start)):
-            self._step(0)
-        return self.screen(), 0, 0, self.terminal
+        #for _ in range(np.random.randint(0, self.random_start)):
+        #    self._step(0)
 
     def _step(self, action):
         self._screen, self.reward, self.terminal, self.info = self.env.step(action)
@@ -52,6 +50,7 @@ class GymWrapper():
                 break
         self.reward = cumulated
 
+    @property
     def screen(self):
         return rgb2gray(resize(self._screen ,(self.screen_height, self.screen_width)))
 

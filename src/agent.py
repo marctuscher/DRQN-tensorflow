@@ -7,8 +7,8 @@ from src.replay_memory import ReplayMemory
 
 class Agent():
 
-    def __init__(self, train_steps=10000000,batch_size=64, history_len=4, mem_size=700000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
-                 epsilon_decay_episodes=100000, screen_height=84, screen_width=84, train_freq=4, update_freq=2000,
+    def __init__(self, train_steps=10000000,batch_size=32, history_len=4, mem_size=600000, frame_skip=4, epsilon_start=1, epsilon_end=0.1,
+                 epsilon_decay_episodes=1000000, screen_height=84, screen_width=84, train_freq=4, update_freq=10000,
                  learn_start=10000, dir_save="saved_session/", restore=False, train_start=50000):
         self.learn_start = learn_start
         self.train_steps = train_steps
@@ -53,19 +53,21 @@ class Agent():
             return a[0]
 
     def observe(self, action):
-        self.history.add(self.env_wrapper.screen())
-        self.replay_memory.add(self.env_wrapper.screen(), self.env_wrapper.reward, action, self.env_wrapper.terminal)
+        screen = self.env_wrapper.screen
+        self.history.add(screen)
+        self.replay_memory.add(screen, self.env_wrapper.reward, action, self.env_wrapper.terminal)
 
     def train(self, steps):
         self.env_wrapper.new_random_game()
         episode_len, reward, counter = 0.0, 0.0, 1.0
         episode_num = 0.0
-
+        total_q = 0.0
+        train_count = 0.0
         for _ in range(self.history_len):
-            self.history.add(self.env_wrapper.screen())
+            self.history.add(self.env_wrapper.screen)
         for self.i in tqdm(range(self.i, steps)):
             action = self.policy(self.history.get())
-            self.env_wrapper.act(action)
+            self.env_wrapper.act_simple(action)
             self.observe(action)
             if self.env_wrapper.terminal:
                 self.lens += 1
@@ -80,21 +82,25 @@ class Agent():
             if self.i < self.epsilon_decay_episodes:
                 self.epsilon -= self.epsilon_decay
             if self.i % self.train_freq == 0 and self.i > self.train_start:
-                self.net.train_on_batch_target(*self.replay_memory.sample_batch())
+                total_q += self.net.train_on_batch_target(*self.replay_memory.sample_batch())
+                train_count += 1.0
             if self.i % self.update_freq == 0:
                 self.net.update_target()
-            if self.i % 1000 == 0 and self.i > self.train_start:
+            if self.i % 10000 == 0 and self.i > self.train_start:
                 sum_dict = {
                             'total_reward': float(self.rewards/counter),
                             'episode_len': float(self.lens/counter),
-                    'episode_num': float(episode_num/counter),
+                    'episode_num': float(episode_num),
                             'epsilon': self.epsilon,
-                            'learning_rate': self.net.learning_rate
+                            'learning_rate': self.net.learning_rate,
+                            'avg_q': total_q / train_count
                             }
                 counter = 0
+                train_count = 0.0
+                total_q = 0.0
                 self.lens, self.rewards = 0.0, 0.0
                 episode_num = 0.0
-                self.net.inject_summary(sum_dict)
+                self.net.inject_summary(sum_dict, self.i)
             if self.i % 500000 == 0:
                 self.save()
 

@@ -36,6 +36,7 @@ class DQN():
         self.lr_decay = .99
         self.clip = -1  # if negative, no clipping
         self.nepoch_no_imprv = 5
+        self.state_size_lstm = 512
         self.sess = None
         self.saver = None
         self.all_tf = not True
@@ -145,7 +146,6 @@ class DQN():
                                     name="input_state")
         self.action = tf.placeholder(tf.int32, shape=[None], name="action_input")
         self.reward = tf.placeholder(tf.int32, shape=[None], name="reward")
-
         self.state_target = tf.placeholder(tf.float32,
                                            shape=[None, self.history_len, self.screen_height, self.screen_width],
                                            name="input_target")
@@ -154,9 +154,10 @@ class DQN():
         self.lr = tf.placeholder(dtype=tf.float32, shape=[],
                                  name="lr")
         self.terminal = tf.placeholder(dtype=tf.uint8, shape=[None], name="terminal")
-
         self.target_val = tf.placeholder(dtype=tf.float32, shape=[None])
         self.target_val_tf = tf.placeholder(dtype=tf.float32, shape=[None, self.n_actions])
+        self.init_state = np.zeros((1, 2, self.batch_size, self.state_size_lstm))
+        self.lstm_state = tf.placeholder(tf.float32, [1, 2, self.batch_size, self.state_size_lstm])
 
         self.learning_rate_step = tf.placeholder("int64", None, name="learning_rate_step")
 
@@ -167,13 +168,10 @@ class DQN():
         }
         if action_inputs is not None:
             feed[self.action] = action_inputs
-
         if reward is not None:
             feed[self.reward] = reward
-
         if state_target is not None:
             feed[self.state_target] = state_target
-
         if lr is not None:
             feed[self.lr] = lr
         if dropout is not None:
@@ -218,14 +216,15 @@ class DQN():
             out_flat = tf.reshape(out, [-1, reduce(lambda x, y: x * y, shape[1:])])
             shape = out_flat.get_shape().as_list()
 
-        with tf.variable_scope("fully1_train"):
-            w = tf.get_variable('wf1', [shape[1], 512], dtype=tf.float32,
-                                initializer=tf.random_normal_initializer(0.02))
-            b = tf.get_variable('bf1', [512], dtype=tf.float32, initializer=tf.constant_initializer(0.0))
-            self.w["wf1"] = w
-            self.w["bf1"] = b
-            out = tf.nn.xw_plus_b(out_flat, w, b)
-            out = tf.nn.relu(out)
+        with tf.variable_scope("lstm_train"):
+            cell = tf.nn.rnn_cell.LSTMCell(self.state_size_lstm, state_is_tuple=True)
+            outputs, self.output_state = tf.nn.dynamic_rnn(cell, out_flat, initial_state=self.lstm_state)
+            lstm_var = [v for v in tf.all_variables() if v.name.startswith("lstm_train")]
+            self.w["wlstm1"] = lstm_var[0]
+        b = tf.get_variable('blstm1', [512], initializer=tf.constant_initializer(0.0))
+        self.w['blstm1'] = b
+        out = tf.nn.xw_plus_b(outputs, w, b)
+        out = tf.nn.relu(out)
             # out = tf.nn.dropout(out, self.dropout)
 
         with tf.variable_scope("out_train"):
@@ -274,13 +273,15 @@ class DQN():
             out_flat = tf.reshape(out, [-1, reduce(lambda x, y: x * y, shape[1:])])
             shape = out_flat.get_shape().as_list()
 
-        with tf.variable_scope("fully1_target"):
-            w = tf.get_variable('wf1', [shape[1], 512], dtype=tf.float32, initializer=self.initializer, trainable=False)
-            b = tf.get_variable('bf1', [512], dtype=tf.float32, initializer=self.initializer, trainable=False)
-            self.w_target["wf1"] = w
-            self.w_target["bf1"] = b
-            out = tf.nn.xw_plus_b(out_flat, w, b)
-            out = tf.nn.relu(out)
+        with tf.variable_scope("lstm_target"):
+            cell = tf.nn.rnn_cell.LSTMCell(self.state_size_lstm, state_is_tuple=True)
+            outputs, self.output_state = tf.nn.dynamic_rnn(cell, out_flat, initial_state=self.lstm_state)
+            lstm_var = [v for v in tf.all_variables() if v.name.startswith("lstm_target")]
+            self.w_target["wlstm1"] = lstm_var[0]
+        b = tf.get_variable('blstm1', [512], initializer=tf.constant_initializer(0.0))
+        self.w_target['blstm1'] = b
+        out = tf.nn.xw_plus_b(outputs, w, b)
+        out = tf.nn.relu(out)
 
         with tf.variable_scope("out_target"):
             w = tf.get_variable('wout', [512, self.n_actions], dtype=tf.float32, initializer=self.initializer,

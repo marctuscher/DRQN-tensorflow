@@ -4,6 +4,7 @@ import tensorflow as tf
 import shutil
 from functools import reduce
 from tensorflow.python import debug as tf_debug
+import matplotlib.pyplot as plt
 
 # from utilities.keras_progbar import Progbar
 
@@ -24,18 +25,17 @@ class DQN():
         self.history_len = history_len
         self.pred_before_train = pred_before_train
         self.dir_save = dir_save
+        self.learning_rate_minimum = 0.00025
 
-        #self.initializer = tf.truncated_normal_initializer(0, 0.02)
-        self.initializer = tf.contrib.layers.xavier_initializer()
-        # self.debug = True
-        self.nepochs = 30
+        self.initializer = tf.truncated_normal_initializer(0, 0.02)
+        #self.initializer = tf.contrib.layers.xavier_initializer()
+        #self.initializer = tf.zeros_initializer()
+        #self.debug = True
         self.keep_prob = 0.8
         self.batch_size = 32
         self.lr_method = "adam"
-        self.learning_rate = 0.0001
+        self.learning_rate = 0.00025
         self.lr_decay = .99
-        self.clip = -1  # if negative, no clipping
-        self.nepoch_no_imprv = 5
         self.sess = None
         self.saver = None
         self.all_tf = not True
@@ -89,12 +89,12 @@ class DQN():
         self.file_writer = tf.summary.FileWriter(self.dir_output + "/train",
                                                  self.sess.graph)
 
-    def inject_summary(self, tag_dict):
+    def inject_summary(self, tag_dict, step):
         summary_str_lists = self.sess.run([self.summary_ops[tag] for tag in tag_dict], {
             self.summary_placeholders[tag]: value for tag, value in tag_dict.items()
         })
         for summ in summary_str_lists:
-            self.file_writer.add_summary(summ, self.train_steps)
+            self.file_writer.add_summary(summ, step)
 
     def train_on_batch_target(self, state, action, reward, state_, terminal):
         self.is_training = True
@@ -111,11 +111,13 @@ class DQN():
                 self.dropout: self.keep_prob
             }
         )
-        self.file_writer.add_summary(loss_summary, self.train_steps)
-        self.file_writer.add_summary(q_summary, self.train_steps)
-        if self.train_steps % 100000 == 0 and self.train_steps != 0:
-            self.learning_rate *= self.lr_decay  # decay learning rate
+        if self.train_steps % 1000 == 0:
+            self.file_writer.add_summary(loss_summary, self.train_steps)
+            self.file_writer.add_summary(q_summary, self.train_steps)
+        #if self.train_steps % 100000 == 0 and self.train_steps != 0:
+        #    self.learning_rate *= self.lr_decay  # decay learning rate
         self.train_steps += 1
+        return q.mean()
 
     def train_on_batch_all_tf(self, state, action, reward, state_, terminal):
         self.is_training = True
@@ -134,6 +136,7 @@ class DQN():
         )
         self.file_writer.add_summary(loss_summary, self.train_steps)
         self.file_writer.add_summary(q_summary, self.train_steps)
+
         if self.train_steps % 100000 == 0 and self.train_steps != 0:
             self.learning_rate *= self.lr_decay  # decay learning rate
         self.train_steps += 1
@@ -155,7 +158,7 @@ class DQN():
                                  name="lr")
         self.terminal = tf.placeholder(dtype=tf.uint8, shape=[None], name="terminal")
 
-        self.target_val = tf.placeholder(dtype=tf.float32, shape=[None])
+        self.target_val = tf.placeholder(dtype=tf.float32, shape=[None], name="target_val")
         self.target_val_tf = tf.placeholder(dtype=tf.float32, shape=[None, self.n_actions])
 
         self.learning_rate_step = tf.placeholder("int64", None, name="learning_rate_step")
@@ -243,7 +246,7 @@ class DQN():
             w = tf.get_variable("wc1", (8, 8, self.state.get_shape()[1], 32), dtype=tf.float32,
                                 initializer=self.initializer, trainable=False)
             conv = tf.nn.conv2d(self.state_target, w, [1, 1, 4, 4], padding='VALID', data_format='NCHW')
-            b = tf.get_variable('bc1', [32], initializer=self.initializer, trainable=False)
+            b = tf.get_variable('bc1', [32], initializer=self.initializer)
             self.w_target['wc1'] = w
             self.w_target['bc1'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
@@ -251,9 +254,9 @@ class DQN():
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv2_target"):
-            w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer, trainable=False)
+            w = tf.get_variable("wc2", (4, 4, 32, 64), dtype=tf.float32, initializer=self.initializer)
             conv = tf.nn.conv2d(out, w, [1, 1, 2, 2], padding='VALID', data_format='NCHW')
-            b = tf.get_variable('bc2', [64], initializer=self.initializer, trainable=False)
+            b = tf.get_variable('bc2', [64], initializer=self.initializer)
             self.w_target['wc2'] = w
             self.w_target['bc2'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
@@ -261,9 +264,9 @@ class DQN():
             out = tf.nn.relu(out)
 
         with tf.variable_scope("conv3_target"):
-            w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer, trainable=False)
+            w = tf.get_variable("wc3", (3, 3, 64, 64), dtype=tf.float32, initializer=self.initializer)
             conv = tf.nn.conv2d(out, w, [1, 1, 1, 1], padding='VALID', data_format='NCHW')
-            b = tf.get_variable('bc3', [64], initializer=self.initializer, trainable=False)
+            b = tf.get_variable('bc3', [64], initializer=self.initializer)
             self.w_target['wc3'] = w
             self.w_target['bc3'] = b
             out = tf.nn.bias_add(conv, b, "NCHW")
@@ -275,8 +278,8 @@ class DQN():
             shape = out_flat.get_shape().as_list()
 
         with tf.variable_scope("fully1_target"):
-            w = tf.get_variable('wf1', [shape[1], 512], dtype=tf.float32, initializer=self.initializer, trainable=False)
-            b = tf.get_variable('bf1', [512], dtype=tf.float32, initializer=self.initializer, trainable=False)
+            w = tf.get_variable('wf1', [shape[1], 512], dtype=tf.float32, initializer=self.initializer)
+            b = tf.get_variable('bf1', [512], dtype=tf.float32, initializer=self.initializer)
             self.w_target["wf1"] = w
             self.w_target["bf1"] = b
             out = tf.nn.xw_plus_b(out_flat, w, b)
@@ -285,8 +288,7 @@ class DQN():
         with tf.variable_scope("out_target"):
             w = tf.get_variable('wout', [512, self.n_actions], dtype=tf.float32, initializer=self.initializer,
                                 trainable=False)
-            b = tf.get_variable('bout', [self.n_actions], dtype=tf.float32, initializer=self.initializer,
-                                trainable=False)
+            b = tf.get_variable('bout', [self.n_actions], dtype=tf.float32, initializer=self.initializer)
             self.w_target["wout"] = w
             self.w_target["bout"] = b
             out = tf.nn.xw_plus_b(out, w, b)
@@ -305,7 +307,11 @@ class DQN():
         train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
         delta = self.target_val - train
         self.loss = tf.reduce_mean(self.clipping(delta))
-        self.avg_q_summary = tf.summary.scalar("avg_q", tf.reduce_mean(self.q_out))
+        avg_q = tf.reduce_mean(self.q_out, 0)
+        q_summary = []
+        for i in range(self.n_actions):
+            q_summary.append(tf.summary.histogram('q/{}'.format(i), avg_q[i]))
+        self.avg_q_summary = tf.summary.merge(q_summary, 'q_summary')
         self.loss_summary = tf.summary.scalar("loss", self.loss)
 
     def add_loss_op_target_tf(self):
@@ -318,7 +324,11 @@ class DQN():
         train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1, name='action_one_hot')
         delta = target - train
         self.loss = tf.reduce_mean(self.clipping(delta))
-        self.avg_q_summary = tf.summary.scalar("avg_q", tf.reduce_mean(self.q_out))
+        avg_q = tf.reduce_mean(self.q_out, 0)
+        q_summary = []
+        for i in range(self.n_actions):
+            q_summary.append(tf.summary.histogram('q/{}'.format(id), avg_q[i]))
+        self.avg_q_summary = tf.summary.merge(q_summary, 'q_summary')
         self.loss_summary = tf.summary.scalar("loss", self.loss)
 
     def clipping(self, x):
@@ -332,8 +342,7 @@ class DQN():
             self.add_loss_op_target_tf()
         else:
             self.add_loss_op_target()
-        self.add_train_op(self.lr_method, self.lr, self.loss,
-                          self.clip)
+        self.add_train_op(self.lr_method, self.lr, self.loss)
         self.preprocess_func()
         self.initialize_session()
         self.init_update()
