@@ -4,16 +4,10 @@ import tensorflow as tf
 import shutil
 from functools import reduce
 from tensorflow.python import debug as tf_debug
-import matplotlib.pyplot as plt
-
-# from utilities.keras_progbar import Progbar
-
-"""
-This class instantiates a neural network for regression on a specific dataset
-"""
 
 
-class DQN():
+
+class BaseModel():
 
     def __init__(self, n_actions, history_len, screen_width, screen_height, gamma=0.99, debug=False,
                  pred_before_train=True, dir_save=None):
@@ -28,9 +22,6 @@ class DQN():
         self.learning_rate_minimum = 0.00025
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
-        #self.initializer = tf.contrib.layers.xavier_initializer()
-        #self.initializer = tf.zeros_initializer()
-        #self.debug = True
         self.keep_prob = 0.8
         self.batch_size = 32
         self.lr_method = "adam"
@@ -39,7 +30,6 @@ class DQN():
         self.sess = None
         self.saver = None
         self.all_tf = True
-        # delete ./out
         if os.path.isdir("./out"):
             shutil.rmtree("./out")
         self.dir_output = "./out"
@@ -145,6 +135,7 @@ class DQN():
                 self.learning_rate = self.learning_rate_minimum
         self.train_steps += 1
         return q.mean()
+
     def add_placeholders(self):
         self.w = {}
         self.w_target = {}
