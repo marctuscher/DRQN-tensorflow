@@ -1,65 +1,49 @@
 import gym
 from src.utils import resize, rgb2gray
 import numpy as np
+import matplotlib.pyplot as plt
 
 class GymWrapper():
 
-    def __init__(self, env_name, screen_width, screen_height, frame_skip):
-        self.env = gym.make(env_name)
-        self.screen_width, self.screen_height = screen_width, screen_height
-        self._screen = None
+    def __init__(self, config):
+        self.env = gym.make(config.env_name)
+        self.screen_width, self.screen_height = config.screen_width, config.screen_height
         self.reward = 0
         self.terminal = True
         self.info = {'ale.lives': 0}
-        self.action_repeat = 4
-        self.frame_skip = frame_skip
+        self.env.env.frameskip = config.frame_skip
+
+        self._screen = np.empty((210, 160), dtype=np.uint8)
 
     def new_game(self):
-        self._screen = self.env.reset()
+        self.env.reset()
+        self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
 
     def _step(self, action):
-        self._screen, self.reward, self.terminal, self.info = self.env.step(action)
+        _, self.reward, self.terminal, self.info = self.env.step(action)
+        self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
 
     def random_step(self):
         return self.env.action_space.sample()
 
-    def act_simple(self, action):
+    def act(self, action):
         lives_before = self.lives
         self._step(action)
         if self.lives < lives_before:
             self.terminal = True
 
 
-    def act(self, action):
-        cumulated = 0
-        start_lives = self.lives
-        for _ in range(self.frame_skip):
-            self._step(action)
-            cumulated = cumulated +self.reward
-            if start_lives > self.lives:
-                self.terminal = True
-            if self.terminal:
-                break
-        self.reward = cumulated
-
     def act_play(self, action):
-        cumulated = 0
-        start_lives = self.lives
+        lives_before = self.lives
+        self._step(action)
         self.env.render()
-        for _ in range(self.frame_skip):
-            self._step(action)
-            self.env.render()
-            cumulated = cumulated +self.reward
-            if start_lives > self.lives:
-                self.terminal = True
-            if self.terminal:
-                break
-        self.reward = cumulated
-
+        if self.lives < lives_before:
+            self.terminal = True
 
     @property
     def screen(self):
-        return rgb2gray(resize(self._screen ,(self.screen_height, self.screen_width)))
+        a = resize(self._screen ,(self.screen_height, self.screen_width))
+        return a
 
     @property
     def lives(self):
