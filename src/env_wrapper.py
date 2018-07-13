@@ -1,7 +1,6 @@
 import gym
 from src.utils import resize, rgb2gray
 import numpy as np
-import matplotlib.pyplot as plt
 
 class GymWrapper():
 

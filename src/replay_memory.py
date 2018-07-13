@@ -1,16 +1,15 @@
 import numpy as np
 import random
 import os
-import matplotlib.pyplot as plt
 
 class ReplayMemory:
 
     def __init__(self, config):
         self.config = config
-        self.actions = np.empty((self.config.mem_size), dtype=np.uint16)
-        self.rewards = np.empty((self.config.mem_size), dtype=np.uint32)
+        self.actions = np.empty((self.config.mem_size), dtype=np.int32)
+        self.rewards = np.empty((self.config.mem_size), dtype=np.int32)
         self.screens = np.empty((self.config.mem_size, self.config.screen_height, self.config.screen_width), dtype=np.uint8)
-        self.terminals = np.empty((self.config.mem_size,), dtype=np.bool)
+        self.terminals = np.empty((self.config.mem_size,), dtype=np.float16)
         self.count = 0
         self.current = 0
         self.dir_save = config.dir_save + "memory/"
@@ -39,7 +38,7 @@ class ReplayMemory:
         self.actions[self.current] = action
         self.rewards[self.current] = reward
         self.screens[self.current] = screen
-        self.terminals[self.current] = terminal
+        self.terminals[self.current] = float(terminal)
         self.count = max(self.count, self.current + 1)
         self.current = (self.current + 1) % self.config.mem_size
 

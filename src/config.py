@@ -4,7 +4,7 @@ class Config(object):
 
     env_name = "Breakout-v0"
     train_steps = 10000000
-    batch_size = 64
+    batch_size = 32
     history_len = 4
     mem_size = 500000
     frame_skip = 4
@@ -16,7 +16,7 @@ class Config(object):
     screen_width = 84
     train_freq = 4
     update_freq = 10000
-    train_start = 50000
+    train_start = 50
     dir_save = "saved_session/"
     restore = False
     epsilon_decay = (epsilon_start - epsilon_end)/epsilon_decay_episodes
@@ -25,6 +25,6 @@ class Config(object):
     gamma = 0.99
     learning_rate_minimum = 0.00025
     lr_method = "rmsprop"
-    learning_rate = 0.003
+    learning_rate = 0.0005
     lr_decay = 0.97
     keep_prob = 0.8

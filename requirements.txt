@@ -31,7 +31,7 @@ scikit-image==0.14.0
 scipy==1.1.0
 six==1.11.0
 tensorboard==1.8.0
-tensorflow-gpu==1.8.0
+tensorflow==1.8.0
 termcolor==1.1.0
 toolz==0.9.0
 tqdm==4.23.4
