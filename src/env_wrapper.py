@@ -11,16 +11,27 @@ class GymWrapper():
         self.terminal = True
         self.info = {'ale.lives': 0}
         self.env.env.frameskip = config.frame_skip
+        self.random_start = config.random_start
 
         self._screen = np.empty((210, 160), dtype=np.uint8)
 
     def new_game(self):
-        self.env.reset()
-        self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
+        if self.lives == 0:
+            self.env.reset()
+        self._step(0)
+        self.reward = 0
+        self.action = 0
+
+    def new_random_game(self):
+        self.new_game()
+        for _ in range(np.random.randint(0, self.random_start)):
+            self._step(0)
+
 
     def _step(self, action):
+        self.action = action
         _, self.reward, self.terminal, self.info = self.env.step(action)
-        self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
+
 
     def random_step(self):
         return self.env.action_space.sample()
@@ -41,6 +52,7 @@ class GymWrapper():
 
     @property
     def screen(self):
+        self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
         a = resize(self._screen ,(self.screen_height, self.screen_width))
         return a
 

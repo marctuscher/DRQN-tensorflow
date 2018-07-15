@@ -18,7 +18,7 @@ def save_config(config_file, config_dict):
         json.dump(config_dict, fp)
 
 
-def conv2d_layer(x, output_dim, kernel_size, stride, initializer=None, padding="VALID", data_format="NHWC",
+def conv2d_layer(x, output_dim, kernel_size, stride, initializer=None, padding="VALID", data_format="NCHW",
                  summary_tag=None,
                  scope_name="conv2d", activation=tf.nn.relu):
     with tf.variable_scope(scope_name):
@@ -30,7 +30,7 @@ def conv2d_layer(x, output_dim, kernel_size, stride, initializer=None, padding="
             kernel_shape = [kernel_size[0], kernel_size[1], x.get_shape()[-1], output_dim]
 
         bound = initializer_bounds_filter(kernel_shape)
-        w = tf.get_variable('w', kernel_shape, tf.float32, initializer=tf.random_uniform_initializer(-bound, bound))
+        w = tf.get_variable('w', kernel_shape, tf.float32, initializer=tf.truncated_normal_initializer(0, 0.02))
         conv = tf.nn.conv2d(x, w, stride, padding, data_format=data_format)
 
         b = tf.get_variable('biases', [output_dim], initializer=tf.constant_initializer(0.0))
@@ -47,30 +47,28 @@ def conv2d_layer(x, output_dim, kernel_size, stride, initializer=None, padding="
             elif output_dim == 64:
                 ix = 8
                 iy = 8
+
             img = tf.slice(out, [0, 0, 0, 0], [1, -1, -1, -1])
-            out_shape = out.get_shape().as_list()
-            if data_format == "NHWC":
-                img = tf.reshape(img, [out_shape[1], out_shape[2], out_shape[3]])
-            else:
-                img = tf.reshape(img, [out_shape[2], out_shape[3], out_shape[1]])
+            if data_format == "NCHW":
+                img = tf.transpose(img, [0, 2, 3, 1])
+            out_shape = img.get_shape().as_list()
+            img = tf.reshape(img, [out_shape[1], out_shape[2], out_shape[3]])
             out_shape[1] += 4
             out_shape[2] += 4
             img = tf.image.resize_image_with_crop_or_pad(img, out_shape[1], out_shape[2])
             img = tf.reshape(img, [out_shape[1], out_shape[2], ix, iy])
-            if data_format == "NHWC":
-                img = tf.transpose(img, [2, 0, 3, 1])
-            else:
-                img = tf.transpose(img, [2, 0, 1, 3])
+            img = tf.transpose(img, [2, 0, 3, 1])
             img = tf.reshape(img, [1, ix * out_shape[1], iy * out_shape[2], 1])
             summary = tf.summary.image(summary_tag, img)
 
         return w, b, out, summary
 
 
-def fully_connected_layer(x, input_dim, output_dim, scope_name="fully", initializer=tf.random_normal_initializer(0.02),
+def fully_connected_layer(x, output_dim, scope_name="fully", initializer=tf.random_normal_initializer(stddev=0.02),
                           activation=tf.nn.relu):
+    shape = x.get_shape().as_list()
     with tf.variable_scope(scope_name):
-        w = tf.get_variable("w", [input_dim, output_dim], dtype=tf.float32,
+        w = tf.get_variable("w", [shape[1], output_dim], dtype=tf.float32,
                             initializer=initializer)
         b = tf.get_variable("b", [output_dim], dtype=tf.float32,
                             initializer=tf.zeros_initializer())

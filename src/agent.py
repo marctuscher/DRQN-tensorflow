@@ -19,28 +19,31 @@ class Agent():
         self.rewards = 0
         self.lens = 0
         self.epsilon = config.epsilon_start
+        self.min_reward = -1.
+        self.max_reward = 1.0
         if self.config.restore:
             self.load()
         else:
             self.i = 0
 
-    def policy(self, state):
+    def policy(self):
         if np.random.rand() < self.epsilon:
             return self.env_wrapper.random_step()
         else:
             a = self.net.q_action.eval({
-                self.net.state : [state],
+                self.net.state : [self.history.get()],
                 self.net.dropout: 1.0
                 }, session=self.net.sess)
             return a[0]
 
-    def observe(self, action):
+    def observe(self):
+        reward = max(self.min_reward, min(self.max_reward, self.env_wrapper.reward))
         screen = self.env_wrapper.screen
         self.history.add(screen)
-        self.replay_memory.add(screen, self.env_wrapper.reward, action, self.env_wrapper.terminal)
+        self.replay_memory.add(screen, reward, self.env_wrapper.action, self.env_wrapper.terminal)
 
     def train(self, steps):
-        self.env_wrapper.new_game()
+        self.env_wrapper.new_random_game()
         episode_len, reward, counter = 0.0, 0.0, 1.0
         episode_num = 0.0
         total_q = 0.0
@@ -50,9 +53,9 @@ class Agent():
             self.history.add(self.env_wrapper.screen)
         for self.i in tqdm(range(self.i, steps)):
             episode_steps = 0
-            action = self.policy(self.history.get())
+            action = self.policy()
             self.env_wrapper.act(action)
-            self.observe(action)
+            self.observe()
             if episode_steps > self.config.max_steps:
                 self.env_wrapper.terminal = True
                 self.env_wrapper.reward = -200
@@ -62,7 +65,7 @@ class Agent():
                 episode_num += 1
                 self.rewards += self.env_wrapper.reward
                 counter += 1
-                self.env_wrapper.new_game()
+                self.env_wrapper.new_random_game()
             else:
                 episode_steps += 1
                 self.lens += 1
@@ -72,7 +75,7 @@ class Agent():
                 self.epsilon -= self.config.epsilon_decay
             if self.i % self.config.train_freq == 0 and self.i > self.config.train_start:
                 state, action, reward, state_, terminal = self.replay_memory.sample_batch()
-                total_q += self.net.train_on_batch_target(state, action, reward, state_, terminal, self.i)
+                total_q += self.net.train_on_batch_all_tf(state, action, reward, state_, terminal, self.i)
                 train_count += 1.0
             if self.i % self.config.update_freq == 0:
                 self.net.update_target()
@@ -80,7 +83,7 @@ class Agent():
                 sum_dict = {
                             'total_reward': float(self.rewards/counter),
                             'episode_len': float(self.lens/counter),
-                    'episode_num': float(episode_num),
+                            'episode_num': float(episode_num),
                             'epsilon': self.epsilon,
                             'learning_rate': self.net.learning_rate,
                             'avg_q': total_q / train_count
