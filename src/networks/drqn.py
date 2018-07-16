@@ -18,7 +18,7 @@ class DRQN(BaseModel):
 
     def __init__(self, n_actions, config):
         self.net_work_type = "rnn"
-        super(BaseModel, self).__init__(config, "drqn")
+        super(DRQN, self).__init__(config, "drqn")
         self.n_actions = n_actions
         self.num_lstm_layers = config.num_lstm_layers
         self.lstm_size = config.lstm_size
@@ -29,12 +29,12 @@ class DRQN(BaseModel):
     def add_placeholders(self):
         self.w = {}
         self.w_target = {}
-        self.state = tf.placeholder(tf.float32, shape=[None, None, self.screen_height, self.screen_width],
+        self.state = tf.placeholder(tf.float32, shape=[None, 1, self.screen_height, self.screen_width],
                                     name="input_state")
         self.action = tf.placeholder(tf.int32, shape=[None], name="action_input")
         self.reward = tf.placeholder(tf.int32, shape=[None], name="reward")
         self.state_target = tf.placeholder(tf.float32,
-                                           shape=[None, None, self.screen_height, self.screen_width],
+                                           shape=[None, 1, self.screen_height, self.screen_width],
                                            name="input_target")
         # create placeholder to fill in lstm state
         self.lstm_state = tf.placeholder(tf.float32, [self.num_lstm_layers, 2, self.batch_size, self.lstm_size])
@@ -72,8 +72,7 @@ class DRQN(BaseModel):
 
         shape = out.get_shape().as_list()
         out_flat = tf.reshape(out, [-1, reduce(lambda x, y: x * y, shape[1:])])
-
-        unpacked_state = tf.unpack(self.lstm_state, axis=0)
+        unpacked_state = tf.unstack(self.lstm_state, axis=0)
         rnn_state = tuple(
             [tf.nn.rnn_cell.LSTMStateTuple(unpacked_state[i][0], unpacked_state[i][1])
              for i in range(self.num_lstm_layers)

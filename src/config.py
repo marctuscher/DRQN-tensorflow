@@ -2,6 +2,7 @@
 
 class Config(object):
 
+    #env_name = "SonicAndKnuckles3-Genesis"
     env_name = "Breakout-v0"
     train_steps = 10000000
     batch_size = 32
@@ -37,4 +38,5 @@ class Config(object):
     states_to_update = 4
 
 
-    state=None
+    #state="HydrocityZone.Act1"
+    state = None

@@ -51,7 +51,7 @@ class DQNReplayMemory(ReplayMemory):
             indices = [(index - i) % self.count for i in reversed(range(self.config.history_len))]
             return self.screens[indices, ...]
 
-    def add(self, screen, reward, action, terminal, t):
+    def add(self, screen, reward, action, terminal):
         assert screen.shape == (self.config.screen_height, self.config.screen_width)
 
         self.actions[self.current] = action
@@ -89,7 +89,7 @@ class DQNReplayMemory(ReplayMemory):
 class DRQNReplayMemory(ReplayMemory):
 
     def __init__(self, config):
-        super(DRQNReplayMemory).__init__(config)
+        super(DRQNReplayMemory, self).__init__(config)
 
         self.timesteps = np.empty((self.config.mem_size), dtype=np.int32)
         self.states = np.empty((self.config.batch_size, self.config.min_history + self.config.states_to_update + 1, self.config.screen_height, self.config.screen_width), dtype=np.uint8)

@@ -29,7 +29,6 @@ def conv2d_layer(x, output_dim, kernel_size, stride, initializer=None, padding="
             stride = [1, stride[0], stride[1], 1]
             kernel_shape = [kernel_size[0], kernel_size[1], x.get_shape()[-1], output_dim]
 
-        bound = initializer_bounds_filter(kernel_shape)
         w = tf.get_variable('w', kernel_shape, tf.float32, initializer=tf.truncated_normal_initializer(0, 0.02))
         conv = tf.nn.conv2d(x, w, stride, padding, data_format=data_format)
 

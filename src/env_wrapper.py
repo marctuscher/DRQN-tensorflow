@@ -68,14 +68,13 @@ class GymWrapper():
 class RetroWrapper():
 
     def __init__(self, config):
-        self.env = retro.make(game=config.env_name, state=config.state)
+        self.env = retro.make(game=config.env_name, state=config.state, use_restricted_actions=2)
         self.screen_width, self.screen_height = config.screen_width, config.screen_height
         self.reward = 0
         self.terminal = True
-        self.info = {'ale.lives': 0}
-        self.env.env.frameskip = config.frame_skip
+        self.info = {'lives': 0}
+        #self.env.env.frameskip = config.frame_skip
         self.random_start = config.random_start
-        self._screen = np.empty((210, 160), dtype=np.uint8)
         buttons = ["B", "A", "MODE", "START", "UP", "DOWN", "LEFT", "RIGHT", "C", "Y", "X", "Z"]
         actions = [['LEFT'], ['RIGHT'], ['LEFT', 'DOWN'], ['RIGHT', 'DOWN'], ['DOWN'],
                    ['DOWN', 'B'], ['B']]
@@ -86,6 +85,7 @@ class RetroWrapper():
                 arr[buttons.index(button)] = True
             self._actions.append(arr)
         self.action_space = gym.spaces.Discrete(len(self._actions))
+        print(self.action_space.sample())
 
     def new_game(self):
         if self.lives == 0:
@@ -102,7 +102,7 @@ class RetroWrapper():
 
     def _step(self, action):
         self.action = action
-        _, self.reward, self.terminal, self.info = self.env.step(action)
+        self._screen, self.reward, self.terminal, self.info = self.env.step(action)
 
     def random_step(self):
         return self.action_space.sample()
@@ -123,10 +123,9 @@ class RetroWrapper():
 
     @property
     def screen(self):
-        self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
-        a = resize(self._screen ,(self.screen_height, self.screen_width))
+        a = resize(rgb2gray(self._screen) ,(self.screen_height, self.screen_width))
         return a
 
     @property
     def lives(self):
-        return self.info['ale.lives']
+        return self.info['lives']
