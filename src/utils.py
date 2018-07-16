@@ -60,7 +60,6 @@ def conv2d_layer(x, output_dim, kernel_size, stride, initializer=None, padding="
             img = tf.transpose(img, [2, 0, 3, 1])
             img = tf.reshape(img, [1, ix * out_shape[1], iy * out_shape[2], 1])
             summary = tf.summary.image(summary_tag, img)
-
         return w, b, out, summary
 
 
@@ -78,6 +77,16 @@ def fully_connected_layer(x, output_dim, scope_name="fully", initializer=tf.rand
 
         return w, b, out
 
+def stateful_lstm(x, num_layers, lstm_size, state_input_tuples, scope_name="lstm"):
+    with tf.variable_scope(scope_name):
+        cell = tf.nn.rnn_cell.LSTMCell(lstm_size, state_is_tuple=True)
+        cell = tf.nn.rnn_cell.MultiRNNCell([cell]*num_layers, state_is_tuple=True)
+        outputs, state = tf.nn.dynamic_rnn(cell, x, initial_state=state_input_tuples)
+        return outputs, state
+
+
+def huber_loss(x, delta=1.0):
+    return tf.where(tf.abs(x) < delta, 0.5 * tf.square(x), delta * tf.abs(x) - 0.5* delta)
 
 def integer_product(x):
     return int(np.prod(x))

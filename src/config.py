@@ -16,11 +16,12 @@ class Config(object):
     screen_width = 84
     train_freq = 4
     update_freq = 10000
-    train_start = 50000
+    train_start = 20000
     dir_save = "saved_session/"
     restore = False
     epsilon_decay = float((epsilon_start - epsilon_end))/float(epsilon_decay_episodes)
     random_start = 10
+    test_step = 50000
 
 
     gamma = 0.99
@@ -29,3 +30,8 @@ class Config(object):
     learning_rate = 0.00025
     lr_decay = 0.97
     keep_prob = 0.8
+
+    num_lstm_layers = 1
+    lstm_size = 512
+    min_history = 4
+    states_to_update = 4

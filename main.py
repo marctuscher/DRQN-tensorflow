@@ -1,10 +1,10 @@
-from src.agent import Agent
+from src.dqn_agent import DQNAgent
 from src.config import Config
 
 class Main():
 
     def __init__(self):
-        self.agent = Agent(Config())
+        self.agent = DQNAgent(Config())
     def train(self, steps):
         self.agent.train(steps)
 
