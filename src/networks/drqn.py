@@ -127,6 +127,7 @@ class DRQN(BaseModel):
 
     def train_on_batch_target(self, states, action, reward, terminal, steps):
         states = states / 255.0
+        q, loss = 0, 0
         lstm_state = self.initial_lstm_state
         lstm_state_target = self.sess.run([self.state_output_target],{self.state: states[:][0],
                                                              self.lstm_state: self.initial_lstm_state  })
@@ -139,28 +140,34 @@ class DRQN(BaseModel):
                                                            self.lstm_state_target: lstm_state_target})
         for i in range(self.min_history, self.states_to_update):
             j = i + 1
-
-
-        max_target = np.max(target_val, axis=1)
-        target = (1. - terminal) * self.gamma * max_target + reward
-        _, q, train_loss, q_summary, image_summary = self.sess.run(
-            [self.train_op, self.q_out, self.loss, self.avg_q_summary, self.merged_image_sum],
-            feed_dict={
-                self.state: state,
-                self.action: action,
-                self.target_val: target,
-                self.lr: self.learning_rate
-            }
-        )
-        if self.train_steps % 1000 == 0:
-            self.file_writer.add_summary(q_summary, self.train_steps)
-            self.file_writer.add_summary(image_summary, self.train_steps)
+            target_val, lstm_state_target = self.sess.run([self.q_target_out, self.state_output_target],
+                                                          {
+                                                              self.state_target:states[:][j],
+                                                              self.lstm_state_target: lstm_state_target
+                                                          })
+            max_target = np.max(target_val, axis=1)
+            target = (1. - terminal) * self.gamma * max_target + reward
+            _ , q_ , train_loss_, lstm_state= self.sess.run(
+                [self.train_op, self.q_out, self.loss, self.state_output],
+                feed_dict={
+                    self.state: states[:][i],
+                    self.lstm_state: lstm_state,
+                    self.action: action,
+                    self.target_val: target,
+                    self.lr: self.learning_rate
+                }
+            )
+            q += q_
+            loss += train_loss_
+        #if self.train_steps % 1000 == 0:
+        #    self.file_writer.add_summary(q_summary, self.train_steps)
+        #    self.file_writer.add_summary(image_summary, self.train_steps)
         if steps % 20000 == 0 and steps > 50000:
             self.learning_rate *= self.lr_decay  # decay learning rate
             if self.learning_rate < self.learning_rate_minimum:
                 self.learning_rate = self.learning_rate_minimum
         self.train_steps += 1
-        return q.mean(), train_loss
+        return q.mean(), loss / (self.states_to_update)
 
     def add_loss_op_target_tf(self):
         self.reward = tf.cast(self.reward, dtype=tf.float32)
