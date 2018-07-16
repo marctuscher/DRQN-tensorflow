@@ -11,7 +11,7 @@ class DQNAgent(BaseAgent):
         super(DQNAgent, self).__init__(config)
         self.history = History(config)
         self.replay_memory = DQNReplayMemory(config)
-        self.net = DQN(self.env_wrapper.env.action_space.n, config)
+        self.net = DQN(self.env_wrapper.action_space.n, config)
         self.net.build()
         self.net.add_summary(["average_reward", "average_loss", "average_q", "ep_max_reward", "ep_min_reward", "ep_num_game", "learning_rate"], ["ep_rewards", "ep_actions"])
 

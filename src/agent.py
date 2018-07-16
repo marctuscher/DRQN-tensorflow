@@ -1,11 +1,14 @@
-from src.env_wrapper import GymWrapper
+from src.env_wrapper import GymWrapper, RetroWrapper
 import numpy as np
 
 class BaseAgent():
 
     def __init__(self, config):
         self.config = config
-        self.env_wrapper = GymWrapper(config)
+        if config.state != None:
+            self.env_wrapper = RetroWrapper(config)
+        else:
+            self.env_wrapper = GymWrapper(config)
         self.rewards = 0
         self.lens = 0
         self.epsilon = config.epsilon_start

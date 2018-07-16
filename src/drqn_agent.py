@@ -9,15 +9,14 @@ class DRQNAgent(BaseAgent):
     def __init__(self, config):
         super(DRQNAgent, self).__init__(config)
         self.replay_memory = DRQNReplayMemory(config)
-        self.net = DRQN(self.env_wrapper.env.action_space.n, config)
+        self.net = DRQN(self.env_wrapper.action_space.n, config)
         self.net.build()
         self.net.add_summary(["average_reward", "average_loss", "average_q", "ep_max_reward", "ep_min_reward", "ep_num_game", "learning_rate"], ["ep_rewards", "ep_actions"])
 
     def observe(self, t):
         reward = max(self.min_reward, min(self.max_reward, self.env_wrapper.reward))
-        screen = self.env_wrapper.screen
-        self.history.add(screen)
-        self.replay_memory.add(screen, reward, self.env_wrapper.action, self.env_wrapper.terminal, t)
+        self.screen = self.env_wrapper.screen
+        self.replay_memory.add(self.screen, reward, self.env_wrapper.action, self.env_wrapper.terminal, t)
         if self.i < self.config.epsilon_decay_episodes:
             self.epsilon -= self.config.epsilon_decay
         if self.i % self.config.train_freq == 0 and self.i > self.config.train_start:
@@ -33,9 +32,10 @@ class DRQNAgent(BaseAgent):
         if np.random.rand() < self.epsilon:
             return self.env_wrapper.random_step()
         else:
-            state = self.history.get()/255.0
+            state = self.screen/255.0
             a = self.net.q_action.eval({
-                self.net.state : [state]
+                self.net.state : [state],
+                self.net.lstm_state: [self.lstm_state]
             }, session=self.net.sess)
             return a[0]
 
@@ -47,12 +47,16 @@ class DRQNAgent(BaseAgent):
         total_reward, self.total_loss, self.total_q = 0.,0.,0.
         ep_rewards, actions = [], []
         t = 0
+        self.lstm_state = self.net.initial_lstm_state
 
         for _ in range(self.config.history_len):
             self.history.add(self.env_wrapper.screen)
         for self.i in tqdm(range(self.i, steps)):
             action = self.policy()
             self.env_wrapper.act(action)
+            self.lstm_state = self.net.sess.run([self.net.state_output], {
+                self.net.lstm_state : [self.lstm_state]
+            })[0]
             self.observe(t)
             if self.env_wrapper.terminal:
                 t = 0
@@ -60,6 +64,7 @@ class DRQNAgent(BaseAgent):
                 num_game += 1
                 ep_rewards.append(ep_reward)
                 ep_reward = 0.
+                self.lstm_state = self.net.initial_lstm_state
             else:
                 ep_reward += self.env_wrapper.reward
                 t += 1

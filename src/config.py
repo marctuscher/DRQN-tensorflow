@@ -35,3 +35,6 @@ class Config(object):
     lstm_size = 512
     min_history = 4
     states_to_update = 4
+
+
+    state=None
