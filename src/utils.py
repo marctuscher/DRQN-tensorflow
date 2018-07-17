@@ -76,12 +76,13 @@ def fully_connected_layer(x, output_dim, scope_name="fully", initializer=tf.rand
 
         return w, b, out
 
-def stateful_lstm(x, num_layers, lstm_size, state_input_tuples, scope_name="lstm"):
+def stateful_lstm(x, num_layers, lstm_size, state_input, scope_name="lstm"):
     with tf.variable_scope(scope_name):
         cell = tf.nn.rnn_cell.LSTMCell(lstm_size, state_is_tuple=True)
         cell = tf.nn.rnn_cell.MultiRNNCell([cell]*num_layers, state_is_tuple=True)
-        outputs, state = tf.nn.dynamic_rnn(cell, x, initial_state=state_input_tuples)
-        return outputs, state
+        outputs, state = tf.nn.dynamic_rnn(cell, x, initial_state=state_input)
+        state_out = [state[0][:], state[0][:]]
+        return outputs, state_out
 
 
 def huber_loss(x, delta=1.0):

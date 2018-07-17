@@ -121,7 +121,8 @@ class DRQNReplayMemory(ReplayMemory):
                 index = random.randint(self.config.min_history, self.count-1)
                 if index >= self.current and index - self.config.min_history < self.current:
                     continue
-
+                if index < self.config.min_history + self.config.states_to_update + 1:
+                    continue
                 if self.timesteps[index] < self.config.min_history + self.config.states_to_update:
                     continue
                 break
