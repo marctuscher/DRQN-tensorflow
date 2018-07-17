@@ -4,7 +4,7 @@ import tensorflow as tf
 import shutil
 from functools import reduce
 from tensorflow.python import debug as tf_debug
-from src.utils import conv2d_layer, fully_connected_layer, stateful_lstm
+from src.utils import conv2d_layer, fully_connected_layer, stateful_lstm, huber_loss
 from src.networks.base import  BaseModel
 
 # from utilities.keras_progbar import Progbar
@@ -37,10 +37,11 @@ class DRQN(BaseModel):
                                            shape=[None, 1, self.screen_height, self.screen_width],
                                            name="input_target")
         # create placeholder to fill in lstm state
-        self.lstm_state = tf.placeholder(tf.float32, [self.num_lstm_layers, 2, self.batch_size, self.lstm_size])
-        self.lstm_state_target = tf.placeholder(tf.float32, [self.num_lstm_layers, 2, self.batch_size, self.lstm_size])
+        self.lstm_state = tf.placeholder(tf.float32, [self.num_lstm_layers, 2, None, self.lstm_size], name="lstm_state_train")
+        self.lstm_state_target = tf.placeholder(tf.float32, [self.num_lstm_layers, 2, None, self.lstm_size], name="lstm_state_target")
         # initial zero state to be used when starting episode
         self.initial_lstm_state = np.zeros((self.num_lstm_layers, 2, self.batch_size, self.lstm_size))
+        self.single_initial_lstm_state = np.zeros((self.num_lstm_layers, 2, 1, self.lstm_size))
 
         self.dropout = tf.placeholder(dtype=tf.float32, shape=[],
                                       name="dropout")
@@ -71,7 +72,7 @@ class DRQN(BaseModel):
         self.image_summary.append(summary)
 
         shape = out.get_shape().as_list()
-        out_flat = tf.reshape(out, [-1, reduce(lambda x, y: x * y, shape[1:])])
+        out_flat = tf.reshape(out, [tf.shape(out)[0], 1, shape[1] * shape[2]* shape[3]])
         unpacked_state = tf.unstack(self.lstm_state, axis=0)
         rnn_state = tuple(
             [tf.nn.rnn_cell.LSTMStateTuple(unpacked_state[i][0], unpacked_state[i][1])
@@ -80,7 +81,8 @@ class DRQN(BaseModel):
         )
         out, self.state_output = stateful_lstm(out_flat, self.num_lstm_layers, self.lstm_size, rnn_state, scope_name="lstm_train")
         # TODO get variables for copying to target
-
+        shape = out.get_shape().as_list()
+        out = tf.reshape(out, [tf.shape(out)[0], shape[2]])
         w, b, out = fully_connected_layer(out, self.n_actions, scope_name="out_train", activation=None)
 
         self.w["wout"] = w
@@ -106,15 +108,16 @@ class DRQN(BaseModel):
         self.w_target["bc3"] = b
 
         shape = out.get_shape().as_list()
-        out_flat = tf.reshape(out, [-1, reduce(lambda x, y: x * y, shape[1:])])
-
-        unpacked_state = tf.unpack(self.lstm_state_target, axis=0)
+        out_flat = tf.reshape(out, [tf.shape(out)[0], 1, shape[1] * shape[2]* shape[3]])
+        unpacked_state = tf.unstack(self.lstm_state_target, axis=0)
         rnn_state = tuple(
             [tf.nn.rnn_cell.LSTMStateTuple(unpacked_state[i][0], unpacked_state[i][1])
              for i in range(self.num_lstm_layers)
              ]
         )
         out, self.state_output_target = stateful_lstm(out_flat, self.num_lstm_layers, self.lstm_size, rnn_state, scope_name="lstm_target")
+        shape = out.get_shape().as_list()
+        out = tf.reshape(out, [tf.shape(out)[0], shape[2]])
 
         w, b, out = fully_connected_layer(out, self.n_actions, scope_name="out_target", activation=None)
 
@@ -127,21 +130,25 @@ class DRQN(BaseModel):
     def train_on_batch_target(self, states, action, reward, terminal, steps):
         states = states / 255.0
         q, loss = 0, 0
+        states = np.transpose(states, [1, 0, 2, 3])
+        states = np.reshape(states, [states.shape[0], states.shape[1], 1, states.shape[2], states.shape[3]])
         lstm_state = self.initial_lstm_state
-        lstm_state_target = self.sess.run([self.state_output_target],{self.state: states[:][0],
-                                                             self.lstm_state: self.initial_lstm_state  })
+        lstm_state_target = self.sess.run([self.state_output_target],{
+                                                                        self.state_target: states[0] ,
+                                                                        self.lstm_state_target: self.initial_lstm_state})
         for i in range(self.min_history):
             j = i + 1
             lstm_state, lstm_state_target = self.sess.run([self.state_output, self.state_output_target],
-                                                          {self.state: states[:][i],
-                                                           self.state_target: states[:][j],
+                                                          {self.state: states[i],
+                                                           self.state_target: states[j],
                                                            self.lstm_state: lstm_state,
-                                                           self.lstm_state_target: lstm_state_target})
+                                                           self.lstm_state_target: lstm_state_target,
+                                                           })
         for i in range(self.min_history, self.states_to_update):
             j = i + 1
             target_val, lstm_state_target = self.sess.run([self.q_target_out, self.state_output_target],
                                                           {
-                                                              self.state_target:states[:][j],
+                                                              self.state_target:states[j],
                                                               self.lstm_state_target: lstm_state_target
                                                           })
             max_target = np.max(target_val, axis=1)
@@ -231,7 +238,7 @@ class DRQN(BaseModel):
         self.add_placeholders()
         self.add_logits_op_train()
         self.add_logits_op_target()
-        self.add_loss_op_target_tf()
+        self.add_loss_op_target()
         self.add_train_op(self.lr_method, self.lr, self.loss, clip=10)
         self.initialize_session()
         self.init_update()
@@ -250,9 +257,9 @@ class DRQN(BaseModel):
             self.target_w_in[name] = tf.placeholder(tf.float32, self.w_target[name].get_shape().as_list(), name=name)
             self.target_w_assign[name] = self.w_target[name].assign(self.target_w_in[name])
 
-        self.lstm_vars = tf.get_collection(scope="lstm_train")
-        lstm_target_vars = tf.get_collection(scope="lstm_target")
+        self.lstm_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="lstm_train")
+        lstm_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="lstm_target")
 
         for i, var in enumerate(self.lstm_vars):
-            self.target_w_in[var.name] = tf.placeholder(tf.float32, var.get_shape().as_list(), name=var.name)
+            self.target_w_in[var.name] = tf.placeholder(tf.float32, var.get_shape().as_list())
             self.target_w_assign[var.name] = lstm_target_vars[i].assign(self.target_w_in[var.name])

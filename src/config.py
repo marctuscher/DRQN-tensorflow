@@ -1,28 +1,27 @@
+from tensorflow.python.client import device_lib
 
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
 class Config(object):
 
-    #env_name = "SonicAndKnuckles3-Genesis"
-    env_name = "Breakout-v0"
     train_steps = 10000000
     batch_size = 32
     history_len = 4
-    mem_size = 800000
     frame_skip = 4
     epsilon_start = 1.0
     epsilon_end = 0.1
     max_steps = 10000
     epsilon_decay_episodes = 1000000
-    screen_height = 84
-    screen_width = 84
     train_freq = 4
     update_freq = 10000
-    train_start = 20000
+    train_start = 200
     dir_save = "saved_session/"
     restore = False
     epsilon_decay = float((epsilon_start - epsilon_end))/float(epsilon_decay_episodes)
     random_start = 10
-    test_step = 50000
+    test_step = 5000
 
 
     gamma = 0.99
@@ -37,6 +36,25 @@ class Config(object):
     min_history = 4
     states_to_update = 4
 
+    if get_available_gpus():
+        cnn_format = "NCHW"
+    else:
+        cnn_format = "NWHC"
 
-    #state="HydrocityZone.Act1"
+
+
+class GymConfig(Config):
     state = None
+    screen_height = 84
+    screen_width = 84
+    env_name = "Breakout-v0"
+    mem_size = 800000
+
+
+
+class RetroConfig(Config):
+    state="HydrocityZone.Act1"
+    mem_size = 100000
+    screen_height = 120
+    screen_width = 160
+    env_name = "SonicAndKnuckles3-Genesis"

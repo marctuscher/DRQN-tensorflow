@@ -36,8 +36,9 @@ class BaseModel():
         self.sess = None
         self.saver = None
         # delete ./out
-        self.dir_output = "./out/"+network_type+"/"+ str(datetime.datetime.utcnow()) + "/"
-        self.dir_model = self.dir_save + "/net/" + str(time.time()) + "/"
+        self.dir_output = "./out/"+network_type+"/"+config.env_name+"/"+ str(datetime.datetime.utcnow()) + "/"
+        self.dir_model = self.dir_save + "/net/" +config.env_name+"/"+ str(datetime.datetime.utcnow()) + "/"
+
         self.train_steps = 0
         self.is_training = False
 
@@ -100,5 +101,8 @@ class BaseModel():
             os.makedirs(self.dir_model)
         self.saver.save(self.sess, self.dir_model)
 
-    def restore_session(self):
-        self.saver.restore(self.sess, self.dir_model)
+    def restore_session(self, path=None):
+        if path is not None:
+            self.saver.restore(self.sess, path)
+        else:
+            self.saver.restore(self.sess, self.dir_model)

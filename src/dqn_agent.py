@@ -115,3 +115,36 @@ class DQNAgent(BaseAgent):
                 if j == 1000:
                     render = False
 
+    def play(self, net_path):
+        self.net.restore_session(path=net_path)
+        self.env_wrapper.new_game()
+        i = 0
+        for _ in range(self.config.history_len):
+            self.history.add(self.env_wrapper.screen)
+        episode_steps = 0
+        prev = 0
+        same_steps = 0
+        while True:
+            a = self.net.q_action.eval({
+                self.net.state : [self.history.get()/255.0],
+                self.net.dropout: 1.0
+            }, session=self.net.sess)
+            action = a[0]
+            if prev == a[0]:
+                same_steps += 1
+                if same_steps > 20:
+                    action = 1
+                    same_steps = 0
+            prev = a[0]
+            self.env_wrapper.act_play(action)
+            self.history.add(self.env_wrapper.screen)
+            episode_steps += 1
+            if episode_steps > self.config.max_steps:
+                self.env_wrapper.terminal = True
+            if self.env_wrapper.terminal:
+                episode_steps = 0
+                i += 1
+                self.env_wrapper.new_random_game()
+                for _ in range(self.config.history_len):
+                    screen = self.env_wrapper.screen
+                    self.history.add(screen)
