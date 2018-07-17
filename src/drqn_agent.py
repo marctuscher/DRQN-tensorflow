@@ -34,7 +34,6 @@ class DRQNAgent(BaseAgent):
             self.random = True
             return self.env_wrapper.random_step()
         else:
-            print("not random")
             a, self.lstm_state_c, self.lstm_state_h = self.net.sess.run([self.net.q_action, self.net.state_output_c, self.net.state_output_h],{
                 self.net.state : [[state]],
                 self.net.c_state_train: self.lstm_state_c,
