@@ -39,7 +39,7 @@ class Config(object):
     if get_available_gpus():
         cnn_format = "NCHW"
     else:
-        cnn_format = "NWHC"
+        cnn_format = "NHWC"
 
 
 
