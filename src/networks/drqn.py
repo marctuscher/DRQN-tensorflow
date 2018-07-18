@@ -79,7 +79,6 @@ class DRQN(BaseModel):
         out_flat = tf.reshape(out, [tf.shape(out)[0], 1, shape[1] * shape[2] * shape[3]])
         out, state = stateful_lstm(out_flat, self.num_lstm_layers, self.lstm_size, tuple([self.lstm_state_train]),
                                                scope_name="lstm_train")
-        # TODO get variables for copying to target
         self.state_output_c = state[0][0]
         self.state_output_h = state[0][1]
         shape = out.get_shape().as_list()
@@ -165,8 +164,8 @@ class DRQN(BaseModel):
             )
             max_target = np.max(target_val, axis=1)
             target = (1. - terminal) * self.gamma * max_target + reward
-            _, q_, train_loss_, lstm_state_c, lstm_state_h = self.sess.run(
-                [self.train_op, self.q_out, self.loss, self.state_output_c, self.state_output_h],
+            _, q_, train_loss_, lstm_state_c, lstm_state_h, merged_imgs= self.sess.run(
+                [self.train_op, self.q_out, self.loss, self.state_output_c, self.state_output_h, self.merged_image_sum],
                 feed_dict={
                     self.state: states[i],
                     self.c_state_train: lstm_state_c,
@@ -178,9 +177,8 @@ class DRQN(BaseModel):
             )
             q += q_
             loss += train_loss_
-        # if self.train_steps % 1000 == 0:
-        #    self.file_writer.add_summary(q_summary, self.train_steps)
-        #    self.file_writer.add_summary(image_summary, self.train_steps)
+        if self.train_steps % 5000 == 0:
+            self.file_writer.add_summary(merged_imgs, steps)
         if steps % 20000 == 0 and steps > 50000:
             self.learning_rate *= self.lr_decay  # decay learning rate
             if self.learning_rate < self.learning_rate_minimum:
@@ -188,51 +186,7 @@ class DRQN(BaseModel):
         self.train_steps += 1
         return q.mean(), loss / (self.states_to_update)
 
-    def add_loss_op_target_tf(self):
-        self.reward = tf.cast(self.reward, dtype=tf.float32)
-        target_best = tf.reduce_max(self.target_val_tf, 1)
-        masked = (1.0 - self.terminal) * target_best
-        target = self.reward + self.gamma * masked
 
-        action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
-        train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1)
-        delta = tf.stop_gradient(target) - train
-        self.loss = tf.reduce_mean(self.clipping(delta))
-        avg_q = tf.reduce_mean(self.q_out, 0)
-        q_summary = []
-        for i in range(self.n_actions):
-            q_summary.append(tf.summary.histogram('q/{}'.format(i), avg_q[i]))
-        self.avg_q_summary = tf.summary.merge(q_summary, 'q_summary')
-        self.loss_summary = tf.summary.scalar("loss", self.loss)
-        self.merged_image_sum = tf.summary.merge(self.image_summary, "images")
-
-    def train_on_batch_all_tf(self, state, action, reward, state_, terminal, steps):
-        state = state / 255.0
-        state_ = state_ / 255.0
-        target_val_tf = self.q_target_out.eval({self.state_target: state_}, session=self.sess)
-        _, q, train_loss, loss_summary, q_summary, image_summary = self.sess.run(
-            [self.train_op, self.q_out, self.loss, self.loss_summary, self.avg_q_summary, self.merged_image_sum],
-            feed_dict={
-                self.state: state,
-                self.action: action,
-                self.target_val_tf: target_val_tf,
-                self.reward: reward,
-                self.terminal: terminal,
-                self.lr: self.learning_rate,
-                self.dropout: self.keep_prob
-            }
-        )
-        if self.train_steps % 1000 == 0:
-            self.file_writer.add_summary(loss_summary, self.train_steps)
-            self.file_writer.add_summary(q_summary, self.train_steps)
-            self.file_writer.add_summary(image_summary, self.train_steps)
-        if steps % 20000 == 0 and steps > 50000:
-            self.learning_rate *= self.lr_decay  # decay learning rate
-            if self.learning_rate < self.learning_rate_minimum:
-                self.learning_rate = self.learning_rate_minimum
-        self.train_steps += 1
-
-        return q.mean()
 
     def add_loss_op_target(self):
         action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
