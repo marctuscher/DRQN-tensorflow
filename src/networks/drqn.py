@@ -128,7 +128,7 @@ class DRQN(BaseModel):
 
     def train_on_batch_target(self, states, action, reward, terminal, steps):
         states = states / 255.0
-        q, loss = 0, 0
+        q, loss = np.zeros((self.batch_size, self.n_actions)), 0
         states = np.transpose(states, [1, 0, 2, 3])
         states = np.reshape(states, [states.shape[0], states.shape[1], 1, states.shape[2], states.shape[3]])
         lstm_state_c, lstm_state_h = self.initial_zero_state_batch, self.initial_zero_state_batch
@@ -153,7 +153,7 @@ class DRQN(BaseModel):
                     self.h_state_train: lstm_state_h
                 }
             )
-        for i in range(self.min_history, self.states_to_update):
+        for i in range(self.min_history, self.min_history + self.states_to_update):
             j = i + 1
             target_val, lstm_state_target_c, lstm_state_target_h = self.sess.run(
                 [self.q_target_out, self.state_output_target_c, self.state_output_target_h],
@@ -168,7 +168,7 @@ class DRQN(BaseModel):
             _, q_, train_loss_, lstm_state_c, lstm_state_h = self.sess.run(
                 [self.train_op, self.q_out, self.loss, self.state_output_c, self.state_output_h],
                 feed_dict={
-                    self.state: states[:][i],
+                    self.state: states[i],
                     self.c_state_train: lstm_state_c,
                     self.h_state_train: lstm_state_h,
                     self.action: action,
@@ -186,7 +186,7 @@ class DRQN(BaseModel):
             if self.learning_rate < self.learning_rate_minimum:
                 self.learning_rate = self.learning_rate_minimum
         self.train_steps += 1
-        return q, loss / (self.states_to_update)
+        return q.mean(), loss / (self.states_to_update)
 
     def add_loss_op_target_tf(self):
         self.reward = tf.cast(self.reward, dtype=tf.float32)
