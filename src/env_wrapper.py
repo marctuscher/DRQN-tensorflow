@@ -2,7 +2,6 @@ import gym
 import retro
 from src.utils import resize, rgb2gray
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 

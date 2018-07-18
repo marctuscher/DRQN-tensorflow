@@ -7,11 +7,7 @@ from tensorflow.python import debug as tf_debug
 from src.utils import conv2d_layer, fully_connected_layer, huber_loss
 from src.networks.base import  BaseModel
 
-# from utilities.keras_progbar import Progbar
 
-"""
-This class instantiates a neural network for regression on a specific dataset
-"""
 
 
 class DQN(BaseModel):

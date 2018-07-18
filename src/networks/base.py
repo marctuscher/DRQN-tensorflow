@@ -8,11 +8,7 @@ from functools import reduce
 from tensorflow.python import debug as tf_debug
 from src.utils import conv2d_layer, fully_connected_layer
 
-# from utilities.keras_progbar import Progbar
 
-"""
-This class instantiates a neural network for regression on a specific dataset
-"""
 
 
 class BaseModel():

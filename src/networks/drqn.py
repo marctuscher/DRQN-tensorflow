@@ -7,19 +7,13 @@ from tensorflow.python import debug as tf_debug
 from src.utils import conv2d_layer, fully_connected_layer, stateful_lstm, huber_loss
 from src.networks.base import BaseModel
 
-# from utilities.keras_progbar import Progbar
-
-"""
-This class instantiates a neural network for regression on a specific dataset
-"""
-
 
 class DRQN(BaseModel):
 
     def __init__(self, n_actions, config):
-        self.net_work_type = "rnn"
         super(DRQN, self).__init__(config, "drqn")
         self.n_actions = n_actions
+        self.cnn_format = config.cnn_format
         self.num_lstm_layers = config.num_lstm_layers
         self.lstm_size = config.lstm_size
         self.min_history = config.min_history

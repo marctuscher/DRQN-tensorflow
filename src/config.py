@@ -22,6 +22,7 @@ class Config(object):
     epsilon_decay = float((epsilon_start - epsilon_end))/float(epsilon_decay_episodes)
     random_start = 10
     test_step = 5000
+    network_type = "dqn"
 
 
     gamma = 0.99
