@@ -34,25 +34,3 @@ class BaseAgent():
         self.net.restore_session()
         self.i = np.load(self.config.dir_save+'step.npy')
 
-    def play(self, episodes):
-        self.env_wrapper.new_game()
-        i = 0
-        for _ in range(self.config.history_len):
-            self.history.add(self.env_wrapper.screen)
-        episode_steps = 0
-        while i < episodes:
-            a = self.net.q_action.eval({
-                self.net.state : [self.history.get()],
-                self.net.dropout: 1.0
-            }, session=self.net.sess)
-            self.env_wrapper.act_play(a[0])
-            self.history.add(self.env_wrapper.screen)
-            episode_steps += 1
-            if episode_steps > self.config.max_steps:
-                self.env_wrapper.terminal = True
-            if self.env_wrapper.terminal:
-                episode_steps = 0
-                i += 1
-                self.env_wrapper.new_game()
-                for _ in range(self.config.history_len):
-                    self.history.add(self.env_wrapper.screen)

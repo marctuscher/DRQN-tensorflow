@@ -66,6 +66,7 @@ class DRQNAgent(BaseAgent):
             if self.env_wrapper.terminal:
                 t = 0
                 self.env_wrapper.new_random_game()
+                self.screen = self.env_wrapper.screen
                 num_game += 1
                 ep_rewards.append(ep_reward)
                 ep_reward = 0.
@@ -123,3 +124,26 @@ class DRQNAgent(BaseAgent):
                 if j == 1000:
                     render = False
 
+    def play(self, episodes, net_path):
+        self.net.restore_session(path=net_path)
+        self.env_wrapper.new_game()
+        self.lstm_state_c, self.lstm_state_h = self.net.initial_zero_state_single, self.net.initial_zero_state_single
+        i = 0
+        episode_steps = 0
+        while i < episodes:
+            a, self.lstm_state_c, self.lstm_state_h = self.net.sess.run([self.net.q_action, self.net.state_output_c, self.net.state_output_h],{
+                self.net.state : [[self.env_wrapper.screen]],
+                self.net.c_state_train: self.lstm_state_c,
+                self.net.h_state_train: self.lstm_state_h
+            })
+            action = a[0]
+            self.env_wrapper.act_play(action)
+            self.history.add(self.env_wrapper.screen)
+            episode_steps += 1
+            if episode_steps > self.config.max_steps:
+                self.env_wrapper.terminal = True
+            if self.env_wrapper.terminal:
+                episode_steps = 0
+                i += 1
+                self.env_wrapper.new_play_game()
+                self.lstm_state_c, self.lstm_state_h = self.net.initial_zero_state_single, self.net.initial_zero_state_single

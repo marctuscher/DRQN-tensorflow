@@ -115,14 +115,14 @@ class DQNAgent(BaseAgent):
                 if j == 1000:
                     render = False
 
-    def play(self, net_path):
+    def play(self, episodes, net_path):
         self.net.restore_session(path=net_path)
         self.env_wrapper.new_game()
         i = 0
         for _ in range(self.config.history_len):
             self.history.add(self.env_wrapper.screen)
         episode_steps = 0
-        while True:
+        while i < episodes:
             a = self.net.q_action.eval({
                 self.net.state : [self.history.get()/255.0]
             }, session=self.net.sess)
@@ -135,7 +135,7 @@ class DQNAgent(BaseAgent):
             if self.env_wrapper.terminal:
                 episode_steps = 0
                 i += 1
-                self.env_wrapper.new_random_game()
+                self.env_wrapper.new_play_game()
                 for _ in range(self.config.history_len):
                     screen = self.env_wrapper.screen
                     self.history.add(screen)

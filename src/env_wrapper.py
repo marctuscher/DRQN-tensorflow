@@ -53,6 +53,10 @@ class GymWrapper():
         if self.lives < lives_before:
             self.terminal = True
 
+    def new_play_game(self):
+        self.new_game()
+        self._step(1)
+
     @property
     def screen(self):
         self._screen = self.env.env.ale.getScreenGrayscale(self._screen)
@@ -99,6 +103,9 @@ class RetroWrapper():
         for _ in range(np.random.randint(0, self.random_start)):
             self._step(0)
 
+    def new_play_game(self):
+        self.new_game()
+        self._step(1)
 
     def _step(self, action):
         self.action = action

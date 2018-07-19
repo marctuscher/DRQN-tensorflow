@@ -16,8 +16,8 @@ class Main():
     def train(self, steps):
         self.agent.train(steps)
 
-    def play(self, episodes):
-        self.agent.play(episodes)
+    def play(self, episodes, net_path):
+        self.agent.play(episodes, net_path)
 
 
 if __name__ == "__main__":
@@ -26,8 +26,9 @@ if __name__ == "__main__":
     parser.add_argument("--network_type", type=str, default="dqn", help="Type of the network to build, can either be 'dqn' or 'drqn'")
     parser.add_argument("--env_name", type=str, default="Breakout-v0", help="Name of the gym/retro environment used to train the agent")
     parser.add_argument("--retro_state", type=str, default="Start", help="Name of the state (level) to start training. This is only necessary for retro envs")
-    parser.add_argument("--train", type=bool, default=True, help="Whether to train a network or to play with a given network")
-    parser.add_argument("--model_dir", type=str, default="saved_session/net/", help="directory of the model to reload")
+    parser.add_argument("--train", type=str, default="True", help="Whether to train a network or to play with a given network")
+    parser.add_argument("--model_dir", type=str, default="saved_session/net/", help="directory to save the model and replay memory during training")
+    parser.add_argument("--net_path", type=str, default="", help="path to checkpoint of model")
     parser.add_argument("--steps", type=int, default=50000000, help="number of frames to train")
     args, remaining = parser.parse_known_args()
 
@@ -44,10 +45,12 @@ if __name__ == "__main__":
     conf.train_steps = args.steps
     main = Main(conf.network_type, conf)
 
-    if conf.train:
+    if conf.train == "True":
+        print(conf.train)
         main.train(conf.train_steps)
     else:
-        main.play(100000)
+        assert args.net_path != "", "Please specify a net_path using the option --net_path"
+        main.play(100000, args.net_path)
 
 
 
