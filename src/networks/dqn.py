@@ -95,10 +95,10 @@ class DQN(BaseModel):
     def add_logits_op_train(self):
         self.image_summary = []
         if self.cnn_format == "NHWC":
-            input = tf.transpose(self.state, [0, 2, 3, 1])
+            x = tf.transpose(self.state, [0, 2, 3, 1])
         else:
-            input = self.state
-        w, b, out, summary = conv2d_layer(input, 32, [8, 8], [4, 4], scope_name="conv1_train", summary_tag="conv1_out",
+            x = self.state
+        w, b, out, summary = conv2d_layer(x, 32, [8, 8], [4, 4], scope_name="conv1_train", summary_tag="conv1_out",
                                           activation=tf.nn.relu, data_format=self.cnn_format)
         self.w["wc1"] = w
         self.w["bc1"] = b
@@ -134,10 +134,10 @@ class DQN(BaseModel):
 
     def add_logits_op_target(self):
         if self.cnn_format == "NHWC":
-            input = tf.transpose(self.state_target, [0, 2, 3, 1])
+            x = tf.transpose(self.state_target, [0, 2, 3, 1])
         else:
-            input = self.state_target
-        w, b, out, _ = conv2d_layer(input, 32, [8, 8], [4, 4], scope_name="conv1_target", summary_tag=None,
+            x = self.state_target
+        w, b, out, _ = conv2d_layer(x, 32, [8, 8], [4, 4], scope_name="conv1_target", summary_tag=None,
                                     activation=tf.nn.relu, data_format=self.cnn_format)
         self.w_target["wc1"] = w
         self.w_target["bc1"] = b

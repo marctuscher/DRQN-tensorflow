@@ -55,22 +55,26 @@ class DRQN(BaseModel):
         self.target_val_tf = tf.placeholder(dtype=tf.float32, shape=[None, self.n_actions])
 
     def add_logits_op_train(self):
+        if self.cnn_format == "NHWC":
+            x = tf.transpose(self.state, [0, 2, 3, 1])
+        else:
+            x = self.state
         self.image_summary = []
-        w, b, out, summary = conv2d_layer(self.state, 32, [8, 8], [4, 4], scope_name="conv1_train",
+        w, b, out, summary = conv2d_layer(x, 32, [8, 8], [4, 4], scope_name="conv1_train",
                                           summary_tag="conv1_out",
-                                          activation=tf.nn.relu)
+                                          activation=tf.nn.relu, data_format=self.cnn_format)
         self.w["wc1"] = w
         self.w["bc1"] = b
         self.image_summary.append(summary)
 
         w, b, out, summary = conv2d_layer(out, 64, [4, 4], [2, 2], scope_name="conv2_train", summary_tag="conv2_out",
-                                          activation=tf.nn.relu)
+                                          activation=tf.nn.relu, data_format=self.cnn_format)
         self.w["wc2"] = w
         self.w["bc2"] = b
         self.image_summary.append(summary)
 
         w, b, out, summary = conv2d_layer(out, 64, [3, 3], [1, 1], scope_name="conv3_train", summary_tag="conv3_out",
-                                          activation=tf.nn.relu)
+                                          activation=tf.nn.relu, data_format=self.cnn_format)
         self.w["wc3"] = w
         self.w["bc3"] = b
         self.image_summary.append(summary)
@@ -92,18 +96,22 @@ class DRQN(BaseModel):
         self.q_action = tf.argmax(self.q_out, axis=1)
 
     def add_logits_op_target(self):
-        w, b, out, _ = conv2d_layer(self.state_target, 32, [8, 8], [4, 4], scope_name="conv1_target", summary_tag=None,
-                                    activation=tf.nn.relu)
+        if self.cnn_format == "NHWC":
+            x = tf.transpose(self.state_target, [0, 2, 3, 1])
+        else:
+            x = self.state_target
+        w, b, out, _ = conv2d_layer(x, 32, [8, 8], [4, 4], scope_name="conv1_target", summary_tag=None,
+                                    activation=tf.nn.relu, data_format=self.cnn_format)
         self.w_target["wc1"] = w
         self.w_target["bc1"] = b
 
         w, b, out, _ = conv2d_layer(out, 64, [4, 4], [2, 2], scope_name="conv2_target", summary_tag=None,
-                                    activation=tf.nn.relu)
+                                    activation=tf.nn.relu, data_format=self.cnn_format)
         self.w_target["wc2"] = w
         self.w_target["bc2"] = b
 
         w, b, out, _ = conv2d_layer(out, 64, [3, 3], [1, 1], scope_name="conv3_target", summary_tag=None,
-                                    activation=tf.nn.relu)
+                                    activation=tf.nn.relu, data_format=self.cnn_format)
         self.w_target["wc3"] = w
         self.w_target["bc3"] = b
 
