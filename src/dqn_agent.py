@@ -122,20 +122,11 @@ class DQNAgent(BaseAgent):
         for _ in range(self.config.history_len):
             self.history.add(self.env_wrapper.screen)
         episode_steps = 0
-        prev = 0
-        same_steps = 0
         while True:
             a = self.net.q_action.eval({
-                self.net.state : [self.history.get()/255.0],
-                self.net.dropout: 1.0
+                self.net.state : [self.history.get()/255.0]
             }, session=self.net.sess)
             action = a[0]
-            if prev == a[0]:
-                same_steps += 1
-                if same_steps > 20:
-                    action = 1
-                    same_steps = 0
-            prev = a[0]
             self.env_wrapper.act_play(action)
             self.history.add(self.env_wrapper.screen)
             episode_steps += 1
