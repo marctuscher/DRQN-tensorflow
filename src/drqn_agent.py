@@ -49,10 +49,11 @@ class DRQNAgent(BaseAgent):
         total_reward, self.total_loss, self.total_q = 0.,0.,0.
         ep_rewards, actions = [], []
         t = 0
+        self.screen = self.env_wrapper.screen
         self.lstm_state_c, self.lstm_state_h = self.net.initial_zero_state_single, self.net.initial_zero_state_single
 
         for self.i in tqdm(range(self.i, steps)):
-            state = self.env_wrapper.screen/255.0
+            state = self.screen/255
             action = self.policy(state)
             self.env_wrapper.act(action)
             if self.random:

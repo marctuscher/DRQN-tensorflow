@@ -81,8 +81,7 @@ def stateful_lstm(x, num_layers, lstm_size, state_input, scope_name="lstm"):
         cell = tf.nn.rnn_cell.LSTMCell(lstm_size, state_is_tuple=True)
         cell = tf.nn.rnn_cell.MultiRNNCell([cell]*num_layers, state_is_tuple=True)
         outputs, state = tf.nn.dynamic_rnn(cell, x, initial_state=state_input)
-        state_out = [state[0][:], state[0][:]]
-        return outputs, state_out
+        return outputs, state
 
 
 def huber_loss(x, delta=1.0):
