@@ -72,12 +72,18 @@ class GymWrapper():
 class RetroWrapper():
 
     def __init__(self, config):
+        """
+        TODO !!! Reward Shaping!!!
+        Parameters
+        ----------
+        config
+        """
         self.env = retro.make(game=config.env_name, state=config.state, use_restricted_actions=2)
         self.screen_width, self.screen_height = config.screen_width, config.screen_height
         self.reward = 0
         self.terminal = True
         self.info = {'lives': 0}
-        #self.env.env.frameskip = config.frame_skip
+        self.frameskip = config.frame_skip
         self.random_start = config.random_start
         buttons = ["B", "A", "MODE", "START", "UP", "DOWN", "LEFT", "RIGHT", "C", "Y", "X", "Z"]
         actions = [['LEFT'], ['RIGHT'], ['LEFT', 'DOWN'], ['RIGHT', 'DOWN'], ['DOWN'],
@@ -116,7 +122,9 @@ class RetroWrapper():
 
     def act(self, action):
         lives_before = self.lives
-        self._step(action)
+        # frameskip has to be incorporated on wrapper level
+        for _ in range(self.frameskip):
+            self._step(action)
         if self.lives < lives_before:
             self.terminal = True
 
