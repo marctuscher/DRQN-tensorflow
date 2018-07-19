@@ -28,6 +28,7 @@ if __name__ == "__main__":
     parser.add_argument("--retro_state", type=str, default="Start", help="Name of the state (level) to start training. This is only necessary for retro envs")
     parser.add_argument("--train", type=bool, default=True, help="Whether to train a network or to play with a given network")
     parser.add_argument("--model_dir", type=str, default="saved_session/net/", help="directory of the model to reload")
+    parser.add_argument("--steps", type=int, default=50000000, help="number of frames to train")
     args, remaining = parser.parse_known_args()
 
     if args.gym == "gym":
@@ -40,6 +41,7 @@ if __name__ == "__main__":
     conf.network_type = args.network_type
     conf.train = args.train
     conf.dir_save = args.model_dir
+    conf.train_steps = args.steps
     main = Main(conf.network_type, conf)
 
     if conf.train:

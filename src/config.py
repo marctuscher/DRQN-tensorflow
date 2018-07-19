@@ -6,7 +6,7 @@ def get_available_gpus():
 
 class Config(object):
 
-    train_steps = 10000000
+    train_steps = 50000000
     batch_size = 32
     history_len = 4
     frame_skip = 4
@@ -16,7 +16,7 @@ class Config(object):
     epsilon_decay_episodes = 1000000
     train_freq = 4
     update_freq = 10000
-    train_start = 200
+    train_start = 200000
     dir_save = "saved_session/"
     restore = False
     epsilon_decay = float((epsilon_start - epsilon_end))/float(epsilon_decay_episodes)
@@ -38,7 +38,7 @@ class Config(object):
     states_to_update = 4
 
     if get_available_gpus():
-        cnn_format = "NHWC"
+        cnn_format = "NCHW"
     else:
         cnn_format = "NHWC"
 
