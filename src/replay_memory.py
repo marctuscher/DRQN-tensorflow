@@ -93,6 +93,9 @@ class DRQNReplayMemory(ReplayMemory):
 
         self.timesteps = np.empty((self.config.mem_size), dtype=np.int32)
         self.states = np.empty((self.config.batch_size, self.config.min_history + self.config.states_to_update + 1, self.config.screen_height, self.config.screen_width), dtype=np.uint8)
+        self.actions_out = np.empty((self.config.batch_size, self.config.min_history + self.config.states_to_update +1))
+        self.rewards_out = np.empty((self.config.batch_size, self.config.min_history + self.config.states_to_update +1))
+        self.terminals_out = np.empty((self.config.batch_size, self.config.min_history + self.config.states_to_update +1))
 
     def add(self, screen, reward, action, terminal, t):
         assert screen.shape == (self.config.screen_height, self.config.screen_width)
@@ -110,6 +113,11 @@ class DRQNReplayMemory(ReplayMemory):
         a = self.screens[index - (self.config.min_history + self.config.states_to_update + 1): index]
         return a
 
+    def get_scalars(self, index):
+        t = self.terminals[index - (self.config.min_history + self.config.states_to_update + 1): index]
+        a = self.actions[index - (self.config.min_history + self.config.states_to_update + 1): index]
+        r = self.rewards[index - (self.config.min_history + self.config.states_to_update + 1): index]
+        return a, t, r
 
     def sample_batch(self):
         assert self.count > self.config.min_history + self.config.states_to_update
@@ -127,11 +135,7 @@ class DRQNReplayMemory(ReplayMemory):
                     continue
                 break
             self.states[len(indices)] = self.getState(index)
-            indices.append(index)
+            self.actions_out[len(indices)], self.terminals_out[len(indices)], self.rewards_out[len(indices)] = self.get_scalars(index)
 
 
-        actions = self.actions[indices]
-        rewards = self.rewards[indices]
-        terminals = self.terminals[indices]
-
-        return self.states, actions, rewards, terminals
+        return self.states, self.actions_out, self.rewards_out, self.terminals_out

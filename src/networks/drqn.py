@@ -137,6 +137,9 @@ class DRQN(BaseModel):
         states = states / 255.0
         q, loss = np.zeros((self.batch_size, self.n_actions)), 0
         states = np.transpose(states, [1, 0, 2, 3])
+        action = np.transpose(action, [1, 0])
+        reward = np.transpose(reward, [1, 0])
+        terminal = np.transpose(terminal, [1, 0])
         states = np.reshape(states, [states.shape[0], states.shape[1], 1, states.shape[2], states.shape[3]])
         lstm_state_c, lstm_state_h = self.initial_zero_state_batch, self.initial_zero_state_batch
         lstm_state_target_c, lstm_state_target_h = self.sess.run(
@@ -171,14 +174,14 @@ class DRQN(BaseModel):
                 }
             )
             max_target = np.max(target_val, axis=1)
-            target = (1. - terminal) * self.gamma * max_target + reward
+            target = (1. - terminal[i]) * self.gamma * max_target + reward[i]
             _, q_, train_loss_, lstm_state_c, lstm_state_h, merged_imgs= self.sess.run(
                 [self.train_op, self.q_out, self.loss, self.state_output_c, self.state_output_h, self.merged_image_sum],
                 feed_dict={
                     self.state: states[i],
                     self.c_state_train: lstm_state_c,
                     self.h_state_train: lstm_state_h,
-                    self.action: action,
+                    self.action: action[i],
                     self.target_val: target,
                     self.lr: self.learning_rate
                 }
