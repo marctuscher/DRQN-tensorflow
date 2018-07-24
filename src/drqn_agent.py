@@ -138,7 +138,6 @@ class DRQNAgent(BaseAgent):
             })
             action = a[0]
             self.env_wrapper.act_play(action)
-            self.history.add(self.env_wrapper.screen)
             episode_steps += 1
             if episode_steps > self.config.max_steps:
                 self.env_wrapper.terminal = True

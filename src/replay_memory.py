@@ -136,6 +136,7 @@ class DRQNReplayMemory(ReplayMemory):
                 break
             self.states[len(indices)] = self.getState(index)
             self.actions_out[len(indices)], self.terminals_out[len(indices)], self.rewards_out[len(indices)] = self.get_scalars(index)
+            indices.append(index)
 
 
         return self.states, self.actions_out, self.rewards_out, self.terminals_out

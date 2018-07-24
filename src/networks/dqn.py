@@ -17,7 +17,7 @@ class DQN(BaseModel):
         self.n_actions = n_actions
         self.history_len = config.history_len
         self.cnn_format = config.cnn_format
-        self.all_tf = not True
+        self.all_tf = True
 
 
     def train_on_batch_target(self, state, action, reward, state_, terminal, steps):
@@ -48,12 +48,11 @@ class DQN(BaseModel):
     def train_on_batch_all_tf(self, state, action, reward, state_, terminal, steps):
         state = state/255.0
         state_= state_/255.0
-        target_val_tf = self.q_target_out.eval({self.state_target: state_}, session=self.sess)
         _, q, train_loss, q_summary, image_summary = self.sess.run(
             [self.train_op, self.q_out, self.loss, self.avg_q_summary, self.merged_image_sum], feed_dict={
                 self.state: state,
                 self.action: action,
-                self.target_val_tf: target_val_tf,
+                self.state_target:state_,
                 self.reward: reward,
                 self.terminal: terminal,
                 self.lr: self.learning_rate,
@@ -191,13 +190,13 @@ class DQN(BaseModel):
 
     def add_loss_op_target_tf(self):
         self.reward = tf.cast(self.reward, dtype=tf.float32)
-        target_best = tf.reduce_max(self.target_val_tf, 1)
+        target_best = tf.reduce_max(self.q_target_out, 1)
         masked = (1.0 - self.terminal) * target_best
         target = self.reward + self.gamma * masked
 
         action_one_hot = tf.one_hot(self.action, self.n_actions, 1.0, 0.0, name='action_one_hot')
         train = tf.reduce_sum(self.q_out * action_one_hot, reduction_indices=1)
-        delta = tf.stop_gradient(target) - train
+        delta = target - train
         self.loss = tf.reduce_mean(huber_loss(delta))
         avg_q = tf.reduce_mean(self.q_out, 0)
         q_summary = []

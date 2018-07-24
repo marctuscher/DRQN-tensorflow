@@ -7,16 +7,16 @@ def get_available_gpus():
 class Config(object):
 
     train_steps = 50000000
-    batch_size = 32
+    batch_size = 64
     history_len = 4
     frame_skip = 4
     epsilon_start = 1.0
-    epsilon_end = 0.1
+    epsilon_end = 0.02
     max_steps = 10000
     epsilon_decay_episodes = 1000000
-    train_freq = 4
+    train_freq = 8
     update_freq = 10000
-    train_start = 200
+    train_start = 20000
     dir_save = "saved_session/"
     restore = False
     epsilon_decay = float((epsilon_start - epsilon_end))/float(epsilon_decay_episodes)

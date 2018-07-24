@@ -24,7 +24,7 @@ class DQNAgent(BaseAgent):
             self.epsilon -= self.config.epsilon_decay
         if self.i % self.config.train_freq == 0 and self.i > self.config.train_start:
             state, action, reward, state_, terminal = self.replay_memory.sample_batch()
-            q, loss= self.net.train_on_batch_target(state, action, reward, state_, terminal, self.i)
+            q, loss= self.net.train_on_batch_all_tf(state, action, reward, state_, terminal, self.i)
             self.total_q += q
             self.total_loss += loss
             self.update_count += 1
