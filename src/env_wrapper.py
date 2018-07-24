@@ -116,6 +116,7 @@ class RetroWrapper():
     def _step(self, action):
         self.action = action
         self._screen, self.reward, self.terminal, self.info = self.env.step(action)
+        self.reward += 0.1 * self.info['rings']
 
     def random_step(self):
         return self.action_space.sample()

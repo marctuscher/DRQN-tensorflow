@@ -17,7 +17,7 @@ class DQN(BaseModel):
         self.n_actions = n_actions
         self.history_len = config.history_len
         self.cnn_format = config.cnn_format
-        self.all_tf = True
+        self.all_tf = not True
 
 
     def train_on_batch_target(self, state, action, reward, state_, terminal, steps):
