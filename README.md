@@ -26,7 +26,8 @@ Visualizing the training process can be done using tensorboard by:
 ```
 tensorboard --logdir=out
 ```
-
+### Pretrained models
+A pretrained model is available in `pretrained_models`
 ### Result after training for 10mio steps (approx. 11 hours on GTX 1080 Ti)
 ![Alt Text](https://github.com/marctuscher/dqn/blob/master/assets/breakout_10mio.gif)
 ### References
